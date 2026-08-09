@@ -1,6 +1,18 @@
 import { isBooleanString } from 'class-validator';
 import dotenv from 'dotenv';
+import { join } from 'path';
 
+/**
+ * تعديل خاص بنظام LorkERP:
+ * dotenv.config() الافتراضي يقرأ من process.cwd()، وعند تشغيل Evolution
+ * داخل عملية النظام يكون cwd هو جذر الـ ERP فيُقرأ ملف بيئة خاطئ.
+ * نقرأ أولاً ملف Evolution الخاص عند تحديد EVOLUTION_ROOT_DIR، ثم نقرأ
+ * ملف المضيف كاحتياط. dotenv لا يستبدل المتغيرات المضبوطة مسبقاً، فيبقى
+ * ملف Evolution هو صاحب الأولوية، والتشغيل المستقل لم يتغير سلوكه.
+ */
+if (process.env.EVOLUTION_ROOT_DIR) {
+  dotenv.config({ path: join(process.env.EVOLUTION_ROOT_DIR, '.env') });
+}
 dotenv.config();
 
 export type HttpServer = {

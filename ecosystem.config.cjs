@@ -1,6 +1,11 @@
 /**
  * PM2 ecosystem config for LorkERP
  * Usage: pm2 start ecosystem.config.cjs
+ *
+ * Evolution API (واتساب) يعمل داخل نفس هذه العملية وعلى نفس المنفذ،
+ * فلا يحتاج تطبيقاً ثانياً هنا. يُفعّل بـ EVOLUTION_EMBEDDED=1 في .env
+ * بعد تشغيل: npm run evolution:setup
+ * التفاصيل: docs/تكامل-واتساب.md
  */
 module.exports = {
   apps: [

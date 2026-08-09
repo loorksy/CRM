@@ -24,6 +24,14 @@ export class WebsocketController extends EventController implements EventControl
     }
 
     this.socket = new SocketIO(httpServer, {
+      /**
+       * تعديل خاص بنظام LorkERP:
+       * عند التضمين يتشارك Evolution خادم HTTP مع النظام، والنظام يشغّل
+       * Socket.io خاصاً به على المسار الافتراضي /socket.io. بقاء الاثنين
+       * على نفس المسار يجعل أحدهما يبتلع اتصالات الآخر، لذلك يسمح
+       * WEBSOCKET_PATH بفصلهما. القيمة الافتراضية هي السلوك الأصلي نفسه.
+       */
+      path: process.env.WEBSOCKET_PATH || '/socket.io',
       cors: { origin: this.cors },
       allowRequest: async (req, callback) => {
         try {

@@ -279,6 +279,95 @@ async function ensurePayrollDeferredSyncAndAuditSessionColumns() {
   }
 }
 
+/**
+ * جداول هوية وكيل واتساب. إضافة صرفة: لا تعدّل أي جدول قائم.
+ * تُنفَّذ صراحةً هنا حتى لا تعتمد على تمرير ensurePgSchema فقط.
+ */
+async function ensureWhatsappIdentityTables() {
+  if (!pgPool) return;
+  const stmts = [
+    `CREATE TABLE IF NOT EXISTS whatsapp_identities (
+       id SERIAL PRIMARY KEY,
+       owner_user_id INTEGER NOT NULL,
+       subject_type TEXT NOT NULL DEFAULT 'member',
+       member_user_id TEXT,
+       operator_user_id INTEGER,
+       phone_jid TEXT NOT NULL UNIQUE,
+       display_name TEXT,
+       status TEXT NOT NULL DEFAULT 'pending',
+       verified_at TIMESTAMP,
+       last_seen_at TIMESTAMP,
+       failed_attempts INTEGER DEFAULT 0,
+       blocked_until TIMESTAMP,
+       created_by INTEGER,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT wa_identities_subject_chk CHECK (subject_type IN ('member', 'operator')),
+       CONSTRAINT wa_identities_status_chk CHECK (status IN ('pending', 'verified', 'blocked'))
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_ident_member ON whatsapp_identities(owner_user_id, member_user_id) WHERE member_user_id IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_ident_operator ON whatsapp_identities(operator_user_id) WHERE operator_user_id IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_ident_owner ON whatsapp_identities(owner_user_id)`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_otp (
+       id SERIAL PRIMARY KEY,
+       identity_id INTEGER NOT NULL REFERENCES whatsapp_identities(id) ON DELETE CASCADE,
+       code_hash TEXT NOT NULL,
+       expires_at TIMESTAMP NOT NULL,
+       attempts INTEGER DEFAULT 0,
+       max_attempts INTEGER DEFAULT 5,
+       consumed_at TIMESTAMP,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_otp_identity ON whatsapp_otp(identity_id, created_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_sessions (
+       phone_jid TEXT PRIMARY KEY,
+       identity_id INTEGER REFERENCES whatsapp_identities(id) ON DELETE CASCADE,
+       state TEXT NOT NULL DEFAULT 'unverified',
+       history_json TEXT,
+       expires_at TIMESTAMP,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     )`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_access_log (
+       id SERIAL PRIMARY KEY,
+       phone_jid TEXT,
+       identity_id INTEGER,
+       owner_user_id INTEGER,
+       subject_ref TEXT,
+       action TEXT NOT NULL,
+       tool TEXT,
+       detail TEXT,
+       allowed BOOLEAN DEFAULT TRUE,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_log_created ON whatsapp_access_log(created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_log_identity ON whatsapp_access_log(identity_id, created_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_rate_limit (
+       phone_jid TEXT NOT NULL,
+       bucket TEXT NOT NULL,
+       window_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       count INTEGER DEFAULT 0,
+       PRIMARY KEY (phone_jid, bucket)
+     )`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_config (
+       user_id INTEGER PRIMARY KEY,
+       instance_name TEXT,
+       enabled BOOLEAN DEFAULT FALSE,
+       agent_enabled BOOLEAN DEFAULT TRUE,
+       greeting TEXT,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ];
+  for (const s of stmts) {
+    try {
+      await pgPool.query(s);
+    } catch (e) {
+      if (!/already exists|duplicate/i.test(String(e.message))) {
+        console.warn('[DB] whatsapp identity tables:', e.message);
+      }
+    }
+  }
+}
+
 async function ensureAdminUser() {
   if (!pgPool) return;
   const r = await query('SELECT * FROM users WHERE username = $1', [process.env.ADMIN_USERNAME || 'admin']);
@@ -310,6 +399,7 @@ async function initDatabase() {
     await ensureMemberDirectoryTables();
     await ensureUserSimpleFinancialTermsColumn();
     await ensureLedgerCancellationSupport();
+    await ensureWhatsappIdentityTables();
     await ensureAdminUser();
     return getDb();
   }

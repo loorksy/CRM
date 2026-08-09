@@ -8,7 +8,13 @@
     "css:watch": "postcss src/input.css -o public/css/tailwind.css --watch",
     "prestart": "npm run css:build",
     "start": "node server.js",
-    "dev": "npm run css:build && cross-env NODE_ENV=development nodemon server.js"
+    "dev": "npm run css:build && cross-env NODE_ENV=development nodemon server.js",
+    "evolution:install": "npm --prefix integrations/evolution-api install",
+    "evolution:generate": "npm --prefix integrations/evolution-api run db:generate",
+    "evolution:migrate": "npm --prefix integrations/evolution-api run db:deploy",
+    "evolution:build": "npm --prefix integrations/evolution-api run build",
+    "evolution:setup": "npm run evolution:install && npm run evolution:generate && npm run evolution:migrate && npm run evolution:build",
+    "test:whatsapp": "node tests/whatsapp-isolation.test.js"
   },
   "keywords": [
     "erp",
