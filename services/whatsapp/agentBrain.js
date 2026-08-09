@@ -15,9 +15,13 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const aiService = require('../aiService');
 const { getToolDefinitions, executeTool } = require('./scopedData');
 const { getPersona, renderPersonaPrompt } = require('./personaService');
+const providerChain = require('./providerChain');
+const memoryService = require('./memoryService');
 
 const MAX_TOOL_ROUNDS = parseInt(process.env.WHATSAPP_AGENT_MAX_ROUNDS || '8', 10);
 const MAX_REPLY_CHARS = parseInt(process.env.WHATSAPP_MAX_REPLY_CHARS || '3000', 10);
+/** عدد الأدوار الذي يستدعي تكثيف النصف الأقدم في خلاصة محفوظة */
+const SUMMARIZE_AFTER_TURNS = parseInt(process.env.WHATSAPP_SUMMARIZE_AFTER || '10', 10);
 
 /**
  * برومبت النظام. القسم الأول شخصية قابلة للتخصيص من لوحة التحكم،
@@ -27,7 +31,7 @@ const MAX_REPLY_CHARS = parseInt(process.env.WHATSAPP_MAX_REPLY_CHARS || '3000',
  * البيانات (دور مقيّد + عروض مفلترة + RLS). هذه التعليمات للسلوك فقط،
  * ولو تجاهلها النموذج بالكامل لما وصل إلى صف واحد لا يخصّ المستخدم.
  */
-function buildSystemPrompt(scope, persona) {
+function buildSystemPrompt(scope, persona, memoryBlock = '') {
   const who = scope.subjectType === 'member'
     ? `تتحدث الآن مع عضو في الوكالة${scope.displayName ? ` اسمه ${scope.displayName}` : ''}. البيانات المتاحة لك هي بيانات حسابه هو.`
     : `تتحدث الآن مع مشغّل النظام${scope.displayName ? ` اسمه ${scope.displayName}` : ''}. البيانات المتاحة لك هي بيانات مؤسسته.`;
@@ -35,7 +39,7 @@ function buildSystemPrompt(scope, persona) {
   return `${renderPersonaPrompt(persona)}
 
 ${who}
-
+${memoryBlock ? `\n${memoryBlock}\n` : ''}
 كيف تشتغل:
 - عندك أدوات تقرأ من قاعدة بيانات النظام. استعملها دائماً — لا تجاوب من ذاكرتك أبداً.
 - ابدأ بـ describe_data لتعرف الجداول والأعمدة المتاحة، ثم اكتب استعلامك.
@@ -67,8 +71,19 @@ ${who}
 
 // ─────────────────────────── OpenAI ───────────────────────────
 
+/**
+ * OpenAI و OpenRouter يتشاركان نفس الواجهة، ويختلفان في العنوان والترويسات
+ * فقط. لذلك مسار تنفيذ واحد لكليهما.
+ */
+function clientFor(config) {
+  if (config.provider === 'openrouter') {
+    return aiService.openRouterClient(config.apiKey);
+  }
+  return new OpenAI({ apiKey: config.apiKey });
+}
+
 async function runOpenAI(config, scope, systemPrompt, history, userText) {
-  const client = new OpenAI({ apiKey: config.apiKey });
+  const client = clientFor(config);
   const tools = getToolDefinitions(scope).map((t) => ({
     type: 'function',
     function: { name: t.name, description: t.description, parameters: t.parameters },
@@ -197,14 +212,6 @@ async function runGemini(config, scope, systemPrompt, history, userText) {
  * @returns {{ reply: string, history: Array }}
  */
 async function generateReply(scope, history, userText) {
-  const config = await aiService.getPreferredProvider();
-  if (!config || !config.apiKey || !config.selected_model) {
-    return {
-      reply: 'خدمة المساعد غير مُفعّلة حالياً. يرجى مراجعة إدارة النظام.',
-      history,
-    };
-  }
-
   let persona;
   try {
     persona = await getPersona(scope.ownerUserId);
@@ -213,33 +220,95 @@ async function generateReply(scope, history, userText) {
     persona = require('./personaService').DEFAULTS;
   }
 
-  const systemPrompt = buildSystemPrompt(scope, persona);
+  // ما يتذكّره الوكيل عن هذا المستخدم تحديداً — مقروء بـ identityId وحده
+  let memoryBlock = '';
+  if (process.env.WHATSAPP_MEMORY_ENABLED !== '0') {
+    try {
+      memoryBlock = memoryService.renderMemoryPrompt(await memoryService.recall(scope));
+    } catch (e) {
+      console.warn('[whatsapp] تعذّر استرجاع الذاكرة:', e.message);
+    }
+  }
+
+  const systemPrompt = buildSystemPrompt(scope, persona, memoryBlock);
   const safeHistory = Array.isArray(history) ? history.filter((h) => h && h.role && h.content) : [];
 
-  let reply;
-  try {
-    if (config.provider === 'openai') {
-      reply = await runOpenAI(config, scope, systemPrompt, safeHistory, userText);
-    } else if (config.provider === 'gemini') {
-      reply = await runGemini(config, scope, systemPrompt, safeHistory, userText);
-    } else {
-      throw new Error('مزوّد غير مدعوم: ' + config.provider);
+  /**
+   * نجرّب المزوّدات بالتسلسل. سقوط واحد بنفاد رصيد أو حدّ معدّل لم يعد
+   * يُسقط الوكيل ما دام هناك مزوّد آخر مضبوط.
+   */
+  const outcome = await providerChain.runWithFallback(async (config) => {
+    if (config.provider === 'openai' || config.provider === 'openrouter') {
+      return runOpenAI(config, scope, systemPrompt, safeHistory, userText);
     }
-  } catch (e) {
-    console.error('[whatsapp] خطأ في توليد الرد:', e.message);
+    if (config.provider === 'gemini') {
+      return runGemini(config, scope, systemPrompt, safeHistory, userText);
+    }
+    throw new Error('مزوّد غير مدعوم: ' + config.provider);
+  });
+
+  if (!outcome.ok) {
+    const summary = providerChain.summarizeFailure(outcome.attempts);
+    console.error('[whatsapp] تعذّر توليد الرد من أي مزوّد:', summary);
     return {
       reply: 'تعذّر معالجة طلبك حالياً. حاول بعد قليل.',
       history: safeHistory,
+      providerFailure: summary,
     };
   }
 
+  const reply = outcome.result;
   const text = String(reply || '').trim() || 'لم أفهم طلبك. جرّب صياغة أخرى.';
   const trimmed = text.length > MAX_REPLY_CHARS ? text.slice(0, MAX_REPLY_CHARS) + '…' : text;
 
+  const newHistory = [
+    ...safeHistory,
+    { role: 'user', content: userText },
+    { role: 'assistant', content: trimmed },
+  ];
+
+  /**
+   * حين تطول المحادثة، نكثّف نصفها الأقدم في خلاصة ونُبقيها في الذاكرة.
+   * بلا هذا يضيع سياق ما قبل آخر 12 دوراً نهائياً عند انتهاء الجلسة.
+   */
+  if (process.env.WHATSAPP_MEMORY_ENABLED !== '0' && newHistory.length >= SUMMARIZE_AFTER_TURNS) {
+    const older = newHistory.slice(0, Math.floor(newHistory.length / 2));
+    memoryService
+      .summarizeConversation(scope, older, (prompt) =>
+        providerChain
+          .runWithFallback((cfg) => summarizeWith(cfg, prompt))
+          .then((r) => (r.ok ? r.result : ''))
+      )
+      .catch((e) => console.warn('[whatsapp] تلخيص غير متزامن فشل:', e.message));
+  }
+
   return {
     reply: trimmed,
-    history: [...safeHistory, { role: 'user', content: userText }, { role: 'assistant', content: trimmed }],
+    history: newHistory,
+    provider: outcome.provider,
   };
+}
+
+/** نداء بسيط بلا أدوات — يُستعمل للتلخيص فقط */
+async function summarizeWith(config, prompt) {
+  if (config.provider === 'gemini') {
+    const genAI = new GoogleGenerativeAI(config.apiKey);
+    const model = genAI.getGenerativeModel({ model: config.selected_model });
+    const res = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 200 },
+    });
+    return res.response.text();
+  }
+
+  const client = clientFor(config);
+  const res = await client.chat.completions.create({
+    model: config.selected_model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    max_tokens: 200,
+  });
+  return res.choices[0]?.message?.content || '';
 }
 
 module.exports = { generateReply, buildSystemPrompt };

@@ -14,7 +14,7 @@
     "evolution:migrate": "npm --prefix integrations/evolution-api run db:deploy",
     "evolution:build": "npm --prefix integrations/evolution-api run build",
     "evolution:setup": "npm run evolution:install && npm run evolution:generate && npm run evolution:migrate && npm run evolution:build",
-    "test:whatsapp": "node tests/whatsapp-isolation.test.js && node tests/agent-query-isolation.test.js && node tests/whatsapp-conversation.test.js"
+    "test:whatsapp": "node tests/whatsapp-isolation.test.js && node tests/agent-query-isolation.test.js && node tests/whatsapp-conversation.test.js && node tests/agent-memory.test.js"
   },
   "keywords": [
     "erp",

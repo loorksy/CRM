@@ -57,7 +57,8 @@ function createRouter(io) {
       if (!provider || !apiKey) {
         return res.json({ success: false, message: 'المزوّد ومفتاح API مطلوبان' });
       }
-      if (!['openai', 'gemini'].includes(provider)) {
+      const PROVIDER_LABELS = { openai: 'OpenAI', gemini: 'Gemini', openrouter: 'OpenRouter' };
+      if (!PROVIDER_LABELS[provider]) {
         return res.json({ success: false, message: 'مزوّد غير مدعوم' });
       }
 
@@ -68,7 +69,7 @@ function createRouter(io) {
       } catch (fetchErr) {
         return res.json({
           success: false,
-          message: 'فشل الاتصال بخدمة ' + (provider === 'openai' ? 'OpenAI' : 'Gemini') + ': ' + (fetchErr.message || 'تحقق من المفتاح والشبكة'),
+          message: 'فشل الاتصال بخدمة ' + PROVIDER_LABELS[provider] + ': ' + (fetchErr.message || 'تحقق من المفتاح والشبكة'),
         });
       }
       if (!models || models.length === 0) {
@@ -89,6 +90,11 @@ function createRouter(io) {
       if (provider === 'gemini') {
         const preferred = models.find((m) => m.includes('gemini-1.5-flash')) || models.find((m) => m.includes('gemini-1.5-pro'));
         if (preferred) defaultModel = preferred;
+      }
+      if (provider === 'openrouter') {
+        // القائمة مرتّبة أصلاً بسعة السياق تنازلياً، والأكبر أقدر على حمل
+        // تعليمات الوكيل ونتائج الاستعلامات معاً
+        defaultModel = models[0];
       }
       await aiService.saveSelectedModel(provider, defaultModel);
 

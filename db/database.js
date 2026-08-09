@@ -397,6 +397,44 @@ async function ensureAgentPersonaTable() {
   }
 }
 
+/**
+ * ذاكرة الوكيل طويلة المدى، مربوطة بهوية واحدة مُتحقَّق منها.
+ *
+ * القيد المركّب (identity_id, owner_user_id) ومفتاح خارجي CASCADE:
+ * حذف الهوية أو إعادة ربطها يمسح ذاكرتها، فلا يرث رقمٌ جديد ذاكرة من سبقه.
+ */
+async function ensureAgentMemoryTable() {
+  if (!pgPool) return;
+  const stmts = [
+    `CREATE TABLE IF NOT EXISTS whatsapp_agent_memory (
+       id SERIAL PRIMARY KEY,
+       identity_id INTEGER NOT NULL REFERENCES whatsapp_identities(id) ON DELETE CASCADE,
+       owner_user_id INTEGER NOT NULL,
+       kind TEXT NOT NULL DEFAULT 'fact',
+       content TEXT NOT NULL,
+       importance INTEGER DEFAULT 1,
+       source TEXT DEFAULT 'agent',
+       use_count INTEGER DEFAULT 0,
+       last_used_at TIMESTAMP,
+       expires_at TIMESTAMP,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT wa_memory_kind_chk CHECK (kind IN ('fact', 'preference', 'summary'))
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_memory_identity ON whatsapp_agent_memory(identity_id, kind, importance DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_memory_owner ON whatsapp_agent_memory(owner_user_id)`,
+  ];
+  for (const s of stmts) {
+    try {
+      await pgPool.query(s);
+    } catch (e) {
+      if (!/already exists|duplicate/i.test(String(e.message))) {
+        console.warn('[DB] whatsapp agent memory:', e.message);
+      }
+    }
+  }
+}
+
 async function ensureAdminUser() {
   if (!pgPool) return;
   const r = await query('SELECT * FROM users WHERE username = $1', [process.env.ADMIN_USERNAME || 'admin']);
@@ -430,6 +468,7 @@ async function initDatabase() {
     await ensureLedgerCancellationSupport();
     await ensureWhatsappIdentityTables();
     await ensureAgentPersonaTable();
+    await ensureAgentMemoryTable();
     await ensureAdminUser();
 
     // طبقة بيانات الوكيل: دور مقيّد + عروض دلالية + RLS.

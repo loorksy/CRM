@@ -326,6 +326,54 @@ router.get('/persona/preview', ...admin, async (req, res) => {
   }
 });
 
+// ═══════════════════════ ذاكرة الوكيل ═══════════════════════
+
+const memory = require('../services/whatsapp/memoryService');
+
+/** عرض ما يتذكّره الوكيل عن هوية معيّنة */
+router.get('/identities/:id/memory', ...admin, async (req, res) => {
+  try {
+    const rows = await memory.listForIdentity(req.session.userId, req.params.id);
+    res.json({ success: true, memories: rows, max: memory.MAX_MEMORIES });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+/** مسح ذاكرة هوية بالكامل */
+router.delete('/identities/:id/memory', ...admin, async (req, res) => {
+  try {
+    const deleted = await memory.forgetAll(req.session.userId, req.params.id);
+    await identity.logAccess({
+      identityId: Number(req.params.id), ownerUserId: req.session.userId,
+      action: 'memory_cleared', detail: `${deleted} سطراً`,
+    });
+    res.json({ success: true, deleted });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ═══════════════════════ حالة مزوّدات الذكاء ═══════════════════════
+
+/**
+ * ترتيب المزوّدات كما سيجرّبها الوكيل. يكشف مبكراً أن المزوّد الوحيد
+ * المضبوط نفد رصيده، بدل اكتشاف ذلك من شكوى مستخدم.
+ */
+router.get('/providers', ...admin, async (req, res) => {
+  try {
+    const providerChain = require('../services/whatsapp/providerChain');
+    const chain = await providerChain.getProviderChain();
+    res.json({
+      success: true,
+      chain: chain.map((c, i) => ({ order: i + 1, provider: c.provider, model: c.selected_model })),
+      count: chain.length,
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ═══════════════════════ سجل التدقيق ═══════════════════════
 
 router.get('/access-log', ...admin, async (req, res) => {

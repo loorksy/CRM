@@ -108,8 +108,84 @@ async function getPreferredProvider() {
   return await getActiveProvider();
 }
 
+/**
+ * OpenRouter — مزوّد احتياطي بواجهة متوافقة مع OpenAI.
+ *
+ * نقصر الاختيار على النماذج المجانية التي **تدعم استدعاء الأدوات**.
+ * الشرط الثاني ليس تفصيلاً: وكيل واتساب كله مبني على استدعاء الأدوات
+ * (describe_data ثم query_data)، ونموذج بلا هذا الدعم سيهلوس أرقاماً بدل
+ * أن يستعلم عنها — وهو أسوأ من عدم الرد إطلاقاً في نظام محاسبي.
+ */
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+
+/** عميل OpenRouter. الترويستان الاختياريتان لنسبة الاستخدام في لوحة OpenRouter. */
+function openRouterClient(apiKey) {
+  return new OpenAI({
+    apiKey,
+    baseURL: OPENROUTER_BASE_URL,
+    defaultHeaders: {
+      'HTTP-Referer': process.env.PUBLIC_BASE_URL || 'https://lorkerp.local',
+      'X-Title': 'LorkERP',
+    },
+  });
+}
+
+/** هل النموذج مجاني فعلاً؟ التسعير نصوص في استجابة OpenRouter. */
+function isFreeModel(model) {
+  const p = model?.pricing || {};
+  const zero = (v) => v === undefined || v === null || parseFloat(v) === 0;
+  return zero(p.prompt) && zero(p.completion) && zero(p.request);
+}
+
+/** هل يدعم استدعاء الأدوات؟ */
+function supportsTools(model) {
+  const params = model?.supported_parameters || [];
+  return Array.isArray(params) && (params.includes('tools') || params.includes('tool_choice'));
+}
+
+/**
+ * جلب النماذج المجانية الداعمة للأدوات من OpenRouter.
+ * @returns {Promise<Array<{id, name, contextLength, supportsTools}>>}
+ */
+async function fetchOpenRouterModels(apiKey) {
+  const res = await fetch(`${OPENROUTER_BASE_URL}/models`, {
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+  });
+
+  if (!res.ok) {
+    throw new Error(`OpenRouter رفض الطلب (${res.status}). تحقق من المفتاح والشبكة.`);
+  }
+
+  const body = await res.json();
+  const all = Array.isArray(body?.data) ? body.data : [];
+
+  const free = all.filter(isFreeModel);
+  const withTools = free.filter(supportsTools);
+
+  // الترتيب حسب سعة السياق: الأكبر أقدر على حمل تعليمات الوكيل ونتائج الاستعلام
+  return withTools
+    .map((m) => ({
+      id: m.id,
+      name: m.name || m.id,
+      contextLength: m.context_length || 0,
+      supportsTools: true,
+    }))
+    .sort((a, b) => b.contextLength - a.contextLength);
+}
+
 async function fetchModels(provider, apiKey) {
   try {
+    if (provider === 'openrouter') {
+      const models = await fetchOpenRouterModels(apiKey);
+      if (!models.length) {
+        throw new Error(
+          'لم يُعثر على نموذج مجاني يدعم استدعاء الأدوات في OpenRouter حالياً. ' +
+          'قائمة النماذج المجانية تتغيّر باستمرار — أعد المحاولة لاحقاً.'
+        );
+      }
+      return models.map((m) => m.id);
+    }
+
     if (provider === 'openai') {
       const client = new OpenAI({ apiKey });
       const list = await client.models.list();
@@ -138,6 +214,20 @@ async function fetchModels(provider, apiKey) {
     console.error(`[AI] Error fetching models for ${provider}:`, err.message);
     throw new Error(err.message || 'فشل جلب الموديلات');
   }
+}
+
+async function callOpenRouter(apiKey, model, userMessage) {
+  const client = openRouterClient(apiKey);
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage },
+    ],
+    temperature: 0.1,
+    max_tokens: 16000,
+  });
+  return response.choices[0]?.message?.content || '';
 }
 
 async function callOpenAI(apiKey, model, userMessage) {
@@ -179,6 +269,9 @@ async function analyzeChunk(config, text, chunkIndex, totalChunks) {
   }
   if (config.provider === 'gemini') {
     return callGemini(config.apiKey, config.selected_model, userMessage);
+  }
+  if (config.provider === 'openrouter') {
+    return callOpenRouter(config.apiKey, config.selected_model, userMessage);
   }
   throw new Error('مزوّد غير مدعوم: ' + config.provider);
 }
@@ -273,4 +366,8 @@ module.exports = {
   getProviderConfig,
   // يستخدمه وكيل واتساب لإعادة استعمال نفس مزوّد الذكاء المضبوط في الإعدادات
   getPreferredProvider,
+  // OpenRouter: مزوّد احتياطي بنماذج مجانية داعمة للأدوات
+  fetchOpenRouterModels,
+  openRouterClient,
+  OPENROUTER_BASE_URL,
 };

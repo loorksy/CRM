@@ -366,6 +366,43 @@ const TOOL_REGISTRY = {
  * أساسي، وعلى عروض تحمل شرط النطاق داخل تعريفها. فالحرية هنا حرية في
  * صياغة السؤال، لا في اختيار صاحب البيانات.
  */
+/**
+ * أداة التذكّر. الوكيل يقرّر بنفسه ما يستحق الحفظ.
+ *
+ * لا تقبل معرّف هوية — الذاكرة تُكتب وتُقرأ على `scope.identityId` وحده،
+ * تماماً كأدوات البيانات. مستخدم لا يستطيع الكتابة في ذاكرة غيره ولا قراءتها.
+ */
+const MEMORY_TOOLS = [
+  {
+    name: 'remember',
+    description:
+      'حفظ معلومة تستحق التذكّر عن هذا المستخدم للمحادثات القادمة: تفضيل في طريقة الرد، ' +
+      'اهتمام متكرر، أو واقعة تخصّه. لا تحفظ أرقاماً أو مبالغ — تتغيّر وتُجلب من البيانات. ' +
+      'احفظ فقط ما يفيد فعلاً في محادثة قادمة، ولا تحفظ في كل رسالة.',
+    parameters: {
+      type: 'object',
+      properties: {
+        content: { type: 'string', description: 'المعلومة بجملة قصيرة واضحة' },
+        kind: { type: 'string', enum: ['fact', 'preference'], description: 'واقعة أم تفضيل' },
+        importance: { type: 'integer', description: 'من 1 إلى 5' },
+      },
+      required: ['content'],
+    },
+    handler: async (scope, args) => {
+      const memory = require('./memoryService');
+      const res = await memory.remember(scope, {
+        kind: args.kind === 'preference' ? 'preference' : 'fact',
+        content: args.content,
+        importance: args.importance,
+        source: 'agent',
+      });
+      return res.ok
+        ? { saved: true, deduped: Boolean(res.deduped) }
+        : { saved: false, reason: res.reason };
+    },
+  },
+];
+
 const QUERY_TOOLS = [
   {
     name: 'describe_data',
@@ -401,7 +438,8 @@ const QUERY_TOOLS = [
 function getToolsForScope(scope) {
   if (!scope) return [];
   const curated = TOOL_REGISTRY[scope.subjectType] || [];
-  return agentQuery.isEnabled() ? [...QUERY_TOOLS, ...curated] : curated;
+  const base = agentQuery.isEnabled() ? [...QUERY_TOOLS, ...curated] : curated;
+  return process.env.WHATSAPP_MEMORY_ENABLED === '0' ? base : [...base, ...MEMORY_TOOLS];
 }
 
 /** تعريفات الأدوات بلا معالِجات، جاهزة لإرسالها للنموذج */
