@@ -194,6 +194,21 @@ router.post('/logout', ...admin, async (req, res) => {
 
 // ═══════════════════════ إدارة الهويات ═══════════════════════
 
+/** قائمة مستخدمي النظام لاختيار المشغّل عند الربط */
+router.get('/operators', ...admin, async (req, res) => {
+  try {
+    const db = getDb();
+    const rows = (await db.query(
+      `SELECT id, username, display_name, role
+         FROM users
+        ORDER BY display_name NULLS LAST, username`
+    )).rows;
+    res.json({ success: true, operators: rows });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 router.get('/identities', ...admin, async (req, res) => {
   try {
     const rows = await identity.listIdentities(req.session.userId);

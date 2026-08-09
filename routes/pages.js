@@ -70,6 +70,7 @@ const pages = [
   { path: '/client-portal', page: 'client-portal', title: 'واجهة العملاء' },
   { path: '/member-directory', page: 'member-directory', title: 'بيانات المستخدمين' },
   { path: '/member-adjustments', page: 'member-adjustments', title: 'إضافات وخصومات' },
+  { path: '/whatsapp', page: 'whatsapp', title: 'وكيل واتساب' },
 ];
 
 router.get('/member-directory/member/:memberUserId', requireAuth, (req, res) => {
