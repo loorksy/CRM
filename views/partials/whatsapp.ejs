@@ -1,0 +1,314 @@
+<div class="whatsapp-page touch-manipulation w-full max-w-6xl mx-auto min-w-0 overflow-x-clip px-4 pb-12 sm:px-6 lg:px-0 [-webkit-tap-highlight-color:transparent]" dir="rtl" data-tabs-container="whatsapp">
+
+  <header class="mb-6 sm:mb-8">
+    <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
+      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/20 sm:h-14 sm:w-14" aria-hidden="true">
+        <i class="fab fa-whatsapp text-xl sm:text-2xl"></i>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">وكيل واتساب</h1>
+        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">الاتصال، الهويات، شخصية الوكيل، وسجل الوصول — الربط والرمز من اللوحة فقط.</p>
+        <div class="mt-5 h-px max-w-xs bg-gradient-to-l from-emerald-400/50 via-slate-200 to-transparent" aria-hidden="true"></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="mb-8 rounded-xl bg-slate-100 p-1 flex flex-nowrap gap-0.5 shadow-inner touch-manipulation w-full min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:thin]" role="tablist" aria-label="أقسام وكيل واتساب">
+    <button type="button" role="tab" data-wa-tab="connection" class="wa-tab-btn flex max-sm:flex-none max-sm:shrink-0 sm:flex-1 sm:min-w-0 sm:basis-0 h-11 sm:h-12 flex-row items-center justify-center gap-1.5 whitespace-nowrap px-3 rounded-lg text-xs sm:text-sm font-semibold text-emerald-800 bg-white shadow-sm ring-1 ring-slate-200/90 transition-colors" aria-selected="true">
+      <i class="fas fa-signal shrink-0" aria-hidden="true"></i>
+      <span>الاتصال</span>
+    </button>
+    <button type="button" role="tab" data-wa-tab="identities" class="wa-tab-btn flex max-sm:flex-none max-sm:shrink-0 sm:flex-1 sm:min-w-0 sm:basis-0 h-11 sm:h-12 flex-row items-center justify-center gap-1.5 whitespace-nowrap px-3 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors" aria-selected="false">
+      <i class="fas fa-id-card shrink-0" aria-hidden="true"></i>
+      <span>الهويات</span>
+    </button>
+    <button type="button" role="tab" data-wa-tab="persona" class="wa-tab-btn flex max-sm:flex-none max-sm:shrink-0 sm:flex-1 sm:min-w-0 sm:basis-0 h-11 sm:h-12 flex-row items-center justify-center gap-1.5 whitespace-nowrap px-3 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors" aria-selected="false">
+      <i class="fas fa-user-tie shrink-0" aria-hidden="true"></i>
+      <span>شخصية الوكيل</span>
+    </button>
+    <button type="button" role="tab" data-wa-tab="audit" class="wa-tab-btn flex max-sm:flex-none max-sm:shrink-0 sm:flex-1 sm:min-w-0 sm:basis-0 h-11 sm:h-12 flex-row items-center justify-center gap-1.5 whitespace-nowrap px-3 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors" aria-selected="false">
+      <i class="fas fa-clipboard-list shrink-0" aria-hidden="true"></i>
+      <span>سجل التدقيق</span>
+    </button>
+  </nav>
+
+  <!-- تبويب الاتصال -->
+  <section id="waTabConnection" data-wa-panel="connection" class="wa-tab-panel" aria-labelledby="waConnHeading">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <h2 id="waConnHeading" class="text-lg font-bold text-slate-900">حالة الاتصال والربط</h2>
+      <button type="button" id="waRefreshStatusBtn" class="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-200">
+        <i class="fas fa-sync-alt text-xs" aria-hidden="true"></i>
+        تحديث الحالة
+      </button>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">التكامل</p>
+        <p id="waConfiguredBadge" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-600">…</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">سر الـ Webhook</p>
+        <p id="waWebhookBadge" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-600">…</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">اسم النسخة</p>
+        <p id="waInstanceName" class="mt-2 truncate font-mono text-sm text-slate-800" dir="ltr">—</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">حالة الاتصال</p>
+        <p id="waConnectionBadge" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-600">…</p>
+      </div>
+    </div>
+
+    <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div class="min-w-0 w-full sm:max-w-xs sm:flex-1">
+        <label for="waInstanceInput" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">اسم النسخة</label>
+        <input type="text" id="waInstanceInput" maxlength="50" placeholder="lorkerp-1" autocomplete="off" dir="ltr"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        <p class="mt-1.5 text-xs text-slate-500">حروف لاتينية وأرقام و <span dir="ltr">- _</span> فقط (3–50)</p>
+      </div>
+      <div class="flex w-full flex-wrap items-stretch gap-3 sm:w-auto">
+        <button type="button" id="waCreateInstanceBtn" class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 sm:flex-none">
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          إنشاء نسخة
+        </button>
+        <button type="button" id="waShowQrBtn" class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-indigo-700 bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 sm:flex-none">
+          <i class="fas fa-qrcode" aria-hidden="true"></i>
+          عرض رمز QR
+        </button>
+        <button type="button" id="waLogoutBtn" class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 sm:flex-none">
+          <i class="fas fa-unlink" aria-hidden="true"></i>
+          قطع الاتصال
+        </button>
+      </div>
+    </div>
+    <p id="waConnMessage" class="mt-4 text-sm text-slate-500"></p>
+  </section>
+
+  <!-- تبويب الهويات -->
+  <section id="waTabIdentities" data-wa-panel="identities" class="wa-tab-panel hidden" aria-labelledby="waIdentHeading">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <h2 id="waIdentHeading" class="text-lg font-bold text-slate-900">إدارة الهويات</h2>
+      <button type="button" id="waRefreshIdentitiesBtn" class="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-200">
+        <i class="fas fa-sync-alt text-xs" aria-hidden="true"></i>
+        تحديث
+      </button>
+    </div>
+
+    <form id="waLinkForm" class="mb-8 grid gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="min-w-0">
+        <label for="waPhoneInput" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">رقم الهاتف</label>
+        <input type="text" id="waPhoneInput" required placeholder="9647XXXXXXXX" autocomplete="off" dir="ltr"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+      <div class="min-w-0">
+        <label for="waDisplayNameInput" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">الاسم المعروض</label>
+        <input type="text" id="waDisplayNameInput" placeholder="اختياري" autocomplete="off"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+      <div class="min-w-0">
+        <label for="waSubjectType" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">النوع</label>
+        <select id="waSubjectType" class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <option value="member">عضو</option>
+          <option value="operator">مشغّل</option>
+        </select>
+      </div>
+
+      <div id="waMemberField" class="min-w-0 sm:col-span-2 lg:col-span-2">
+        <label for="waMemberSearch" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">بحث عن عضو (آيدي / اسم)</label>
+        <input type="text" id="waMemberSearch" placeholder="اكتب رقم المستخدم أو جزءاً من الاسم" autocomplete="off"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        <input type="hidden" id="waMemberUserId">
+        <div id="waMemberResults" class="mt-2 hidden max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white text-sm shadow-sm"></div>
+        <p id="waMemberSelected" class="mt-2 hidden text-xs font-medium text-emerald-700"></p>
+      </div>
+
+      <div id="waOperatorField" class="hidden min-w-0 sm:col-span-2 lg:col-span-2">
+        <label for="waOperatorSelect" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">المشغّل</label>
+        <select id="waOperatorSelect" class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <option value="">— اختر مستخدماً —</option>
+        </select>
+      </div>
+
+      <div class="flex items-end sm:col-span-2 lg:col-span-1">
+        <button type="submit" id="waLinkSubmitBtn" class="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+          <i class="fas fa-link" aria-hidden="true"></i>
+          ربط رقم جديد
+        </button>
+      </div>
+    </form>
+
+    <div class="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+      <table class="w-full min-w-[860px] border-collapse text-right text-sm">
+        <thead>
+          <tr class="border-b-2 border-slate-200/90 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            <th scope="col" class="pb-3 pl-3 pr-2 pt-0 sm:pr-4">الرقم</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">الاسم</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">النوع</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">الآيدي</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">الحالة</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">آخر ظهور</th>
+            <th scope="col" class="pb-3 pr-2 pl-4 pt-0 sm:pl-4">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="waIdentitiesBody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- تبويب الشخصية -->
+  <section id="waTabPersona" data-wa-panel="persona" class="wa-tab-panel hidden" aria-labelledby="waPersonaHeading">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <h2 id="waPersonaHeading" class="text-lg font-bold text-slate-900">شخصية الوكيل</h2>
+      <p class="text-xs text-slate-500">يؤثر على الأسلوب فقط — لا يوسّع الوصول للبيانات</p>
+    </div>
+
+    <form id="waPersonaForm" class="grid gap-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 lg:grid-cols-2">
+      <div class="min-w-0">
+        <label for="waAgentName" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">اسم الوكيل</label>
+        <input type="text" id="waAgentName" maxlength="40" autocomplete="off"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+      <div class="min-w-0">
+        <label for="waRoleTitle" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">المسمى الوظيفي</label>
+        <input type="text" id="waRoleTitle" maxlength="60" placeholder="محاسب" autocomplete="off"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+      <div class="min-w-0">
+        <label for="waDialect" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">اللهجة</label>
+        <select id="waDialect" class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></select>
+      </div>
+      <div class="min-w-0">
+        <label for="waTone" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">النبرة</label>
+        <select id="waTone" class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></select>
+      </div>
+      <div class="min-w-0">
+        <label for="waVerbosity" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">مستوى الإسهاب</label>
+        <select id="waVerbosity" class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></select>
+      </div>
+      <div class="flex min-w-0 items-end">
+        <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 w-full">
+          <input type="checkbox" id="waEmojiEnabled" class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+          <span class="text-sm font-medium text-slate-800">تفعيل الإيموجي باعتدال</span>
+        </label>
+      </div>
+      <div class="min-w-0 lg:col-span-2">
+        <label for="waGreeting" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">تحية الافتتاح</label>
+        <textarea id="waGreeting" maxlength="300" rows="2"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+      </div>
+      <div class="min-w-0 lg:col-span-2">
+        <div class="flex items-center justify-between gap-3">
+          <label for="waCustomInstructions" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">تعليمات حرّة</label>
+          <span id="waCustomCount" class="text-xs text-slate-500">0 / 2000</span>
+        </div>
+        <textarea id="waCustomInstructions" maxlength="2000" rows="5"
+          class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+      </div>
+      <div class="min-w-0 lg:col-span-2">
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">المهارات</p>
+        <div id="waSkillsBox" class="grid gap-3 sm:grid-cols-2"></div>
+      </div>
+      <div class="flex flex-wrap gap-3 lg:col-span-2">
+        <button type="submit" id="waPersonaSaveBtn" class="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700">
+          <i class="fas fa-save" aria-hidden="true"></i>
+          حفظ الشخصية
+        </button>
+        <button type="button" id="waPersonaPreviewBtn" class="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-indigo-700 bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+          <i class="fas fa-eye" aria-hidden="true"></i>
+          معاينة
+        </button>
+      </div>
+    </form>
+
+    <div id="waPersonaPreviewWrap" class="mt-6 hidden">
+      <h3 class="mb-2 text-sm font-bold text-slate-800">معاينة البرومبت كما يراه النموذج</h3>
+      <pre id="waPersonaPreview" class="overflow-x-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-emerald-100" dir="rtl"></pre>
+    </div>
+  </section>
+
+  <!-- تبويب التدقيق -->
+  <section id="waTabAudit" data-wa-panel="audit" class="wa-tab-panel hidden" aria-labelledby="waLogHeading">
+    <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <h2 id="waLogHeading" class="text-lg font-bold text-slate-900">سجل التدقيق</h2>
+      <div class="flex w-full flex-wrap items-stretch gap-3 sm:w-auto">
+        <div class="min-w-0 flex-1 sm:flex-none">
+          <label for="waLogActionFilter" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">نوع الإجراء</label>
+          <select id="waLogActionFilter" class="mt-2 w-full min-w-[14rem] rounded-xl border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">الكل</option>
+          </select>
+        </div>
+        <button type="button" id="waRefreshLogBtn" class="inline-flex min-h-[44px] items-center justify-center gap-2 self-end rounded-xl border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-200">
+          <i class="fas fa-sync-alt text-xs" aria-hidden="true"></i>
+          تحديث
+        </button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+      <table class="w-full min-w-[900px] border-collapse text-right text-sm">
+        <thead>
+          <tr class="border-b-2 border-slate-200/90 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            <th scope="col" class="pb-3 pl-3 pr-2 pt-0 sm:pr-4">الوقت</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">الرقم</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">الإجراء</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">الأداة</th>
+            <th scope="col" class="pb-3 px-2 pt-0 sm:px-4">التفاصيل</th>
+            <th scope="col" class="pb-3 pr-2 pl-4 pt-0 sm:pl-4">النتيجة</th>
+          </tr>
+        </thead>
+        <tbody id="waLogBody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- مودال QR -->
+<div id="waQrModal" class="fixed inset-0 z-[10050] hidden items-center justify-center bg-slate-900/50 p-4" aria-hidden="true">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="waQrTitle" dir="rtl">
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h3 id="waQrTitle" class="text-lg font-bold text-slate-900">رمز QR للربط</h3>
+        <p id="waQrHint" class="mt-1 text-sm text-slate-500">امسح الرمز من واتساب ← الأجهزة المرتبطة</p>
+      </div>
+      <button type="button" id="waQrCloseBtn" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="إغلاق">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="waQrLoading" class="flex flex-col items-center justify-center gap-3 py-10">
+      <i class="fas fa-spinner fa-spin text-2xl text-indigo-600" aria-hidden="true"></i>
+      <p class="text-sm text-slate-600">جاري توليد الرمز… قد يستغرق بضع ثوانٍ</p>
+    </div>
+    <div id="waQrImageWrap" class="hidden flex flex-col items-center gap-3 py-4">
+      <img id="waQrImage" alt="رمز QR لواتساب" class="h-64 w-64 rounded-xl border border-slate-200 bg-white object-contain p-2">
+      <p id="waQrPairing" class="hidden font-mono text-sm text-slate-700" dir="ltr"></p>
+      <p id="waQrOpenHint" class="hidden text-sm font-medium text-emerald-700">تم الاتصال بنجاح</p>
+    </div>
+    <div id="waQrError" class="hidden rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
+  </div>
+</div>
+
+<!-- مودال رمز التفعيل -->
+<div id="waOtpModal" class="fixed inset-0 z-[10050] hidden items-center justify-center bg-slate-900/50 p-4" aria-hidden="true">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="waOtpTitle" dir="rtl">
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <h3 id="waOtpTitle" class="text-lg font-bold text-slate-900">رمز التفعيل</h3>
+      <button type="button" id="waOtpCloseBtn" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="إغلاق">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+      <p class="font-bold">يُعرض مرة واحدة فقط. سلّمه للمستخدم خارج واتساب.</p>
+      <p class="mt-1 text-amber-800/90">لا ترسل هذا الرمز عبر واتساب إلى نفس الرقم.</p>
+    </div>
+    <div class="mt-5 flex flex-col items-center gap-3">
+      <p id="waOtpCode" class="select-all font-mono text-4xl font-bold tracking-[0.35em] text-slate-900" dir="ltr">————</p>
+      <p id="waOtpTtl" class="text-sm text-slate-500"></p>
+      <button type="button" id="waOtpCopyBtn" class="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-indigo-700 bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+        <i class="fas fa-copy" aria-hidden="true"></i>
+        نسخ الرمز
+      </button>
+    </div>
+  </div>
+</div>
