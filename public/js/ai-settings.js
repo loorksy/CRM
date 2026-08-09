@@ -1,14 +1,41 @@
+const PROVIDERS = {
+  openai: {
+    key: 'openaiKey',
+    btn: 'openaiSaveBtn',
+    select: 'openaiModelSelect',
+    section: 'openaiModelsSection',
+    badge: 'openaiStatusBadge',
+  },
+  gemini: {
+    key: 'geminiKey',
+    btn: 'geminiSaveBtn',
+    select: 'geminiModelSelect',
+    section: 'geminiModelsSection',
+    badge: 'geminiStatusBadge',
+  },
+  openrouter: {
+    key: 'openrouterKey',
+    btn: 'openrouterSaveBtn',
+    select: 'openrouterModelSelect',
+    section: 'openrouterModelsSection',
+    badge: 'openrouterStatusBadge',
+  },
+};
+
 async function saveAIKey(provider) {
-  var inputId = provider === 'openai' ? 'openaiKey' : 'geminiKey';
-  var inputEl = document.getElementById(inputId);
+  var meta = PROVIDERS[provider];
+  if (!meta) {
+    showToast('مزوّد غير مدعوم', 'error');
+    return;
+  }
+  var inputEl = document.getElementById(meta.key);
   var apiKey = (inputEl && inputEl.value) ? inputEl.value.trim() : '';
   if (!apiKey) {
     showToast('الرجاء إدخال مفتاح API', 'error');
     return;
   }
 
-  var btnId = provider === 'openai' ? 'openaiSaveBtn' : 'geminiSaveBtn';
-  var btn = document.getElementById(btnId);
+  var btn = document.getElementById(meta.btn);
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاتصال...';
@@ -27,7 +54,7 @@ async function saveAIKey(provider) {
   if (res && res.success && res.models && res.models.length) {
     populateModels(provider, res.models);
     if (inputEl) inputEl.value = '';
-    var select = document.getElementById(provider === 'openai' ? 'openaiModelSelect' : 'geminiModelSelect');
+    var select = document.getElementById(meta.select);
     if (select && res.selectedModel) select.value = res.selectedModel;
   }
   loadAIStatus();
@@ -52,10 +79,10 @@ async function refreshModels(provider) {
 
 function populateModels(provider, models) {
   if (!models || !models.length) return;
-  var selectId = provider === 'openai' ? 'openaiModelSelect' : 'geminiModelSelect';
-  var sectionId = provider === 'openai' ? 'openaiModelsSection' : 'geminiModelsSection';
-  var select = document.getElementById(selectId);
-  var section = document.getElementById(sectionId);
+  var meta = PROVIDERS[provider];
+  if (!meta) return;
+  var select = document.getElementById(meta.select);
+  var section = document.getElementById(meta.section);
   if (!select || !section) return;
 
   select.innerHTML = '<option value="">اختر موديل...</option>';
@@ -70,28 +97,29 @@ async function loadAIStatus() {
     if (!document.getElementById('openaiStatusBadge')) return;
     const data = await apiCall('/ai/status');
 
-    ['openai', 'gemini'].forEach(p => {
-      const badge = document.getElementById(p + 'StatusBadge');
-      const section = document.getElementById(p + 'ModelsSection');
-      const select = document.getElementById(p + 'ModelSelect');
+    Object.keys(PROVIDERS).forEach(function (p) {
+      var meta = PROVIDERS[p];
+      var badge = document.getElementById(meta.badge);
+      var section = document.getElementById(meta.section);
+      var select = document.getElementById(meta.select);
       if (!badge) return;
 
-      if (data[p]?.configured) {
+      if (data[p] && data[p].configured) {
         badge.textContent = data[p].selectedModel ? '✓ ' + data[p].selectedModel : '✓ مُعدّ';
-        badge.className = 'mr-auto text-xs font-medium py-1 px-3 rounded-full ' +
+        badge.className = 'ms-auto text-xs font-medium py-1 px-3 rounded-full ' +
           (data[p].selectedModel ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600');
 
-        if (data[p].models?.length) {
+        if (data[p].models && data[p].models.length) {
           populateModels(p, data[p].models);
-          if (data[p].selectedModel) select.value = data[p].selectedModel;
+          if (data[p].selectedModel && select) select.value = data[p].selectedModel;
         }
       } else {
         badge.textContent = 'غير مُعدّ';
-        badge.className = 'mr-auto text-xs font-medium py-1 px-3 rounded-full bg-slate-100 text-slate-500';
+        badge.className = 'ms-auto text-xs font-medium py-1 px-3 rounded-full bg-slate-100 text-slate-500';
         if (section) section.classList.add('hidden');
       }
     });
-  } catch {}
+  } catch (e) {}
 }
 
 document.addEventListener('DOMContentLoaded', loadAIStatus);

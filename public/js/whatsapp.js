@@ -7,6 +7,9 @@
   var lastOtpCode = '';
   var allLogEntries = [];
   var personaOptions = null;
+  var currentMemoryIdentityId = null;
+  var providerLabels = { openai: 'OpenAI', gemini: 'Gemini', openrouter: 'OpenRouter' };
+  var kindLabels = { fact: 'واقعة', preference: 'تفضيل', summary: 'خلاصة' };
   var knownActions = [
     'unknown_number', 'identity_linked', 'identity_relinked', 'identity_status_changed',
     'identity_deleted', 'identity_temp_blocked', 'otp_issued', 'otp_verified', 'otp_failed',
@@ -88,7 +91,10 @@
       var show = panel.getAttribute('data-wa-panel') === tab;
       panel.classList.toggle('hidden', !show);
     });
-    if (tab === 'connection') loadStatus();
+    if (tab === 'connection') {
+      loadStatus();
+      loadProviders();
+    }
     if (tab === 'identities') {
       loadOperators();
       loadIdentities();
@@ -141,6 +147,49 @@
       else msg.textContent = '';
     }
     return data;
+  }
+
+  async function loadProviders() {
+    var list = document.getElementById('waProvidersList');
+    var empty = document.getElementById('waProvidersEmpty');
+    if (!list || !empty) return;
+    var data = await apiCall('/api/whatsapp/providers');
+    if (!data || !data.success) {
+      list.innerHTML = '';
+      empty.textContent = (data && data.message) || 'تعذّر جلب ترتيب المزوّدات';
+      empty.classList.remove('hidden');
+      return;
+    }
+    var chain = data.chain || [];
+    if (!data.count || !chain.length) {
+      list.innerHTML = '';
+      empty.textContent = 'لم يُضبط أي مزوّد ذكاء اصطناعي — الوكيل لن يرد على أي رسالة.';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    list.innerHTML = chain
+      .map(function (c, idx) {
+        var label = providerLabels[c.provider] || c.provider;
+        var role = idx === 0 ? 'أساسي — يُجرَّب أولاً' : 'احتياطي';
+        return (
+          '<li class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">' +
+          '<span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">' +
+          esc(String(c.order || idx + 1)) +
+          '</span>' +
+          '<span class="min-w-0 flex-1">' +
+          '<span class="block text-sm font-semibold text-slate-800">' +
+          esc(label) +
+          '</span>' +
+          '<span class="block font-mono text-xs text-slate-500" dir="ltr">' +
+          esc(c.model || '—') +
+          '</span></span>' +
+          '<span class="shrink-0 text-xs font-medium text-slate-500">' +
+          role +
+          '</span></li>'
+        );
+      })
+      .join('');
   }
 
   async function createInstance() {
@@ -345,6 +394,11 @@
           '<button type="button" data-wa-act="otp" data-id="' +
           id +
           '" class="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">إصدار رمز</button>' +
+          '<button type="button" data-wa-act="memory" data-id="' +
+          id +
+          '" data-name="' +
+          esc(r.display_name || phoneFromJid(r.phone_jid)) +
+          '" class="rounded-lg px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-50">الذاكرة</button>' +
           blockBtn +
           '<button type="button" data-wa-act="delete" data-id="' +
           id +
@@ -353,6 +407,99 @@
         );
       })
       .join('');
+  }
+
+  async function openMemory(id, name) {
+    currentMemoryIdentityId = id;
+    var subtitle = document.getElementById('waMemorySubtitle');
+    var result = document.getElementById('waMemoryClearResult');
+    if (subtitle) subtitle.textContent = name ? 'الهوية: ' + name : '';
+    if (result) result.textContent = '';
+    openModal('waMemoryModal');
+    await loadMemory();
+  }
+
+  async function loadMemory() {
+    if (!currentMemoryIdentityId) return;
+    var data = await apiCall('/api/whatsapp/identities/' + encodeURIComponent(currentMemoryIdentityId) + '/memory');
+    var countEl = document.getElementById('waMemoryCount');
+    var empty = document.getElementById('waMemoryEmpty');
+    var wrap = document.getElementById('waMemoryTableWrap');
+    var tbody = document.getElementById('waMemoryBody');
+    if (!data || !data.success) {
+      if (countEl) countEl.textContent = '';
+      if (tbody) tbody.innerHTML = '';
+      if (empty) {
+        empty.textContent = (data && data.message) || 'فشل تحميل الذاكرة';
+        empty.classList.remove('hidden');
+      }
+      if (wrap) wrap.classList.add('hidden');
+      return;
+    }
+    var rows = data.memories || [];
+    var max = data.max || 40;
+    if (countEl) countEl.textContent = rows.length + '/' + max;
+    if (!rows.length) {
+      if (empty) {
+        empty.textContent = 'لا يتذكّر الوكيل شيئاً عن هذا المستخدم بعد.';
+        empty.classList.remove('hidden');
+      }
+      if (wrap) wrap.classList.add('hidden');
+      if (tbody) tbody.innerHTML = '';
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+    if (wrap) wrap.classList.remove('hidden');
+    tbody.innerHTML = rows
+      .map(function (m) {
+        var isSummary = m.kind === 'summary';
+        var rowCls = isSummary ? 'bg-violet-50/70' : 'hover:bg-slate-50';
+        var kindCls = isSummary
+          ? 'bg-violet-100 text-violet-800'
+          : m.kind === 'preference'
+            ? 'bg-sky-50 text-sky-700'
+            : 'bg-slate-100 text-slate-700';
+        return (
+          '<tr class="' +
+          rowCls +
+          '">' +
+          '<td class="py-3 pe-2 ps-0"><span class="inline-flex rounded-lg px-2 py-0.5 text-xs font-semibold ' +
+          kindCls +
+          '">' +
+          esc(kindLabels[m.kind] || m.kind || '—') +
+          '</span></td>' +
+          '<td class="max-w-[20rem] px-2 py-3 text-sm text-slate-800">' +
+          esc(m.content || '—') +
+          '</td>' +
+          '<td class="px-2 py-3 font-mono text-xs tabular-nums">' +
+          esc(String(m.importance != null ? m.importance : '—')) +
+          '</td>' +
+          '<td class="px-2 py-3 font-mono text-xs tabular-nums">' +
+          esc(String(m.use_count != null ? m.use_count : 0)) +
+          '</td>' +
+          '<td class="py-3 ps-2 pe-0 text-xs text-slate-500">' +
+          esc(fmtDate(m.last_used_at || m.created_at)) +
+          '</td></tr>'
+        );
+      })
+      .join('');
+  }
+
+  async function clearMemory() {
+    if (!currentMemoryIdentityId) return;
+    if (!window.confirm('مسح كل ذاكرة الوكيل لهذه الهوية؟ لا يمكن التراجع.')) return;
+    var res = await apiCall(
+      '/api/whatsapp/identities/' + encodeURIComponent(currentMemoryIdentityId) + '/memory',
+      { method: 'DELETE' }
+    );
+    var result = document.getElementById('waMemoryClearResult');
+    if (!res || !res.success) {
+      toast((res && res.message) || 'فشل المسح', 'error');
+      return;
+    }
+    if (result) result.textContent = 'تم حذف ' + (res.deleted || 0) + ' سطراً';
+    toast('تم مسح الذاكرة (' + (res.deleted || 0) + ')', 'success');
+    loadMemory();
   }
 
   function toggleSubjectFields() {
@@ -754,7 +901,12 @@
     });
 
     var refreshStatus = document.getElementById('waRefreshStatusBtn');
-    if (refreshStatus) refreshStatus.addEventListener('click', loadStatus);
+    if (refreshStatus) refreshStatus.addEventListener('click', function () {
+      loadStatus();
+      loadProviders();
+    });
+    var refreshProviders = document.getElementById('waRefreshProvidersBtn');
+    if (refreshProviders) refreshProviders.addEventListener('click', loadProviders);
     var createBtn = document.getElementById('waCreateInstanceBtn');
     if (createBtn) createBtn.addEventListener('click', createInstance);
     var qrBtn = document.getElementById('waShowQrBtn');
@@ -827,10 +979,30 @@
         var act = btn.getAttribute('data-wa-act');
         var id = btn.getAttribute('data-id');
         if (act === 'otp') issueCode(id);
+        else if (act === 'memory') openMemory(id, btn.getAttribute('data-name'));
         else if (act === 'status') setStatus(id, btn.getAttribute('data-status'));
         else if (act === 'delete') deleteIdentity(id);
       });
     }
+
+    var memClose = document.getElementById('waMemoryCloseBtn');
+    if (memClose) {
+      memClose.addEventListener('click', function () {
+        closeModal('waMemoryModal');
+        currentMemoryIdentityId = null;
+      });
+    }
+    var memModal = document.getElementById('waMemoryModal');
+    if (memModal) {
+      memModal.addEventListener('click', function (ev) {
+        if (ev.target === memModal) {
+          closeModal('waMemoryModal');
+          currentMemoryIdentityId = null;
+        }
+      });
+    }
+    var memClear = document.getElementById('waMemoryClearBtn');
+    if (memClear) memClear.addEventListener('click', clearMemory);
 
     var personaForm = document.getElementById('waPersonaForm');
     if (personaForm) personaForm.addEventListener('submit', savePersona);
