@@ -114,8 +114,18 @@ app.use(helmet({
   },
 }));
 app.use(compression());
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+/**
+ * Evolution API يحلّل جسم الطلب بنفسه بحدّ 136 ميجابايت (رفع وسائط واتساب).
+ * لو حلّلناه هنا أولاً بحدّ 25 ميجابايت لفشل رفع الملفات الكبيرة، لذلك
+ * نتخطّى محلّلات الجسم العامة لمسارات Evolution وحدها.
+ */
+const { isEvolutionPath, reserveMountPoint, mountEvolution } = require('./services/whatsapp/embedEvolution');
+const skipForEvolution = (parser) => (req, res, next) =>
+  isEvolutionPath(req.path) ? next() : parser(req, res, next);
+
+app.use(skipForEvolution(express.json({ limit: '25mb' })));
+app.use(skipForEvolution(express.urlencoded({ extended: true, limit: '25mb' })));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const sessionConfig = {
@@ -164,6 +174,7 @@ const paymentDueRoutes = require('./routes/paymentDue');
 const reportsRoutes = require('./routes/reports');
 const memberDirectoryRoutes = require('./routes/member-directory');
 const memberAdjustmentsRoutes = require('./routes/member-adjustments');
+const whatsappRoutes = require('./routes/whatsapp');
 
 app.use('/', authRoutes);
 app.use('/dashboard', dashboardRoutes);
@@ -189,7 +200,12 @@ app.use('/api/payment-due', paymentDueRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/member-directory', memberDirectoryRoutes);
 app.use('/api/member-adjustments', memberAdjustmentsRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 app.use('/ai', aiRoutes(io));
+
+// حجز مسار Evolution قبل معالج 404 — يُملأ بعد إقلاع الخادم
+reserveMountPoint(app);
+
 app.use('/', pagesRoutes);
 
 app.get('/', (req, res) => {
@@ -265,6 +281,11 @@ initDatabase()
       } catch (e) {
         console.error('[LorkERP] Failed to start background sync', e.message);
       }
+
+      // تركيب Evolution API داخل نفس العملية. لا يوقف الإقلاع إن فشل.
+      mountEvolution(server).catch((e) => {
+        console.error('[LorkERP] Evolution mount error:', e.message);
+      });
     });
   })
   .catch((err) => {

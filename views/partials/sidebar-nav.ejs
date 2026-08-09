@@ -1,5 +1,5 @@
 <% var p = typeof page !== 'undefined' ? page : ''; %>
-<% var _g1 = ['sheet','payroll-google','search','sub-agencies','sub-agency-detail','member-directory','member-directory-detail','member-adjustments','admin-brokerage']; %>
+<% var _g1 = ['sheet','payroll-google','search','sub-agencies','sub-agency-detail','member-directory','member-directory-detail','member-adjustments','admin-brokerage','whatsapp']; %>
 <% var _g3 = ['debts','debt-company','debt-fund','payables-overview','receivables-to-us','profit-sources','profit-source-detail','payment-due','financial-movements','expenses-page']; %>
 <% var openG1 = _g1.indexOf(p) >= 0; %>
 <% var openG3 = _g3.indexOf(p) >= 0; %>
@@ -81,6 +81,14 @@
                 <i class="fas fa-percent"></i>
               </span>
               <span class="sidebar-nav-label min-w-0 truncate">وساطة إدارية</span>
+            </a>
+          </li>
+          <li>
+            <a href="/whatsapp" title="وكيل واتساب" class="sidebar-nav-item group flex items-center gap-3 rounded-xl py-2 px-2.5 text-[0.88rem] font-medium transition-all duration-200 <%= p === 'whatsapp' ? 'sidebar-nav-item--active text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white' %>">
+              <span class="sidebar-nav-ico flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] text-[0.9rem] transition-all duration-200 group-hover:border-white/10 <%= p === 'whatsapp' ? 'border-indigo-400/35 bg-indigo-500/25 text-indigo-100' : 'bg-white/[0.06] text-slate-400 group-hover:text-indigo-200' %>">
+                <i class="fab fa-whatsapp"></i>
+              </span>
+              <span class="sidebar-nav-label min-w-0 truncate">وكيل واتساب</span>
             </a>
           </li>
         </ul>

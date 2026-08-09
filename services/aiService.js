@@ -271,4 +271,6 @@ module.exports = {
   saveModelsCache,
   getAIStatus,
   getProviderConfig,
+  // يستخدمه وكيل واتساب لإعادة استعمال نفس مزوّد الذكاء المضبوط في الإعدادات
+  getPreferredProvider,
 };

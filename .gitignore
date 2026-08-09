@@ -10,3 +10,11 @@ whatsapp-session/
 .wwebjs_auth/
 .wwebjs_cache/
 touch.tmp
+
+# مخرجات بناء Evolution وحالة جلسات واتساب
+integrations/evolution-api/node_modules/
+integrations/evolution-api/dist/
+integrations/evolution-api/.env
+integrations/evolution-api/instances/
+integrations/evolution-api/store/
+integrations/evolution-api/prisma/migrations/
