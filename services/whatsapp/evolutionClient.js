@@ -156,7 +156,12 @@ async function findWebhook(instanceName) {
   return request('GET', `/webhook/find/${encodeURIComponent(instanceName)}`);
 }
 
-/** إرسال رسالة نصية. `to` يقبل رقماً أو JID. */
+/**
+ * إرسال رسالة نصية. `to` يقبل رقماً أو JID.
+ *
+ * `delay` ليس مجرد تأخير: Evolution يرسل حالة «يكتب الآن» (composing) طوال
+ * مدته ثم «paused» قبل الإرسال. فهو مؤشر الكتابة الذي يراه المستخدم.
+ */
 async function sendText(instanceName, to, text, options = {}) {
   const number = jidToNumber(to);
   if (!number) return { ok: false, status: 0, data: null, error: 'رقم مستلم غير صالح' };
@@ -165,7 +170,48 @@ async function sendText(instanceName, to, text, options = {}) {
     number,
     text: String(text ?? ''),
     delay: options.delay ?? 0,
+    presence: options.presence || 'composing',
     linkPreview: options.linkPreview ?? false,
+    ...(options.quoted ? { quoted: options.quoted } : {}),
+  });
+}
+
+/**
+ * إظهار حالة مباشرة للمستخدم: composing (يكتب)، recording (يسجّل)،
+ * paused (توقف)، available / unavailable.
+ *
+ * نستعملها أثناء تفكير النموذج، لأن `delay` في sendText يبدأ بعد أن يصبح
+ * الرد جاهزاً — والمستخدم يجب أن يرى «يكتب الآن» من اللحظة الأولى.
+ */
+async function sendPresence(instanceName, to, presence = 'composing', delay = 3000) {
+  const number = jidToNumber(to);
+  if (!number) return { ok: false, status: 0, data: null, error: 'رقم مستلم غير صالح' };
+
+  return request('POST', `/chat/sendPresence/${encodeURIComponent(instanceName)}`, {
+    number,
+    presence,
+    delay,
+  });
+}
+
+/** تعليم الرسالة مقروءة — العلامتان الزرقاوان عند المستخدم */
+async function markAsRead(instanceName, keys) {
+  const readMessages = (Array.isArray(keys) ? keys : [keys])
+    .filter(Boolean)
+    .map((k) => ({ remoteJid: k.remoteJid, fromMe: Boolean(k.fromMe), id: k.id }));
+
+  if (!readMessages.length) return { ok: false, status: 0, data: null, error: 'لا توجد مفاتيح' };
+
+  return request('POST', `/chat/markMessageAsRead/${encodeURIComponent(instanceName)}`, {
+    readMessages,
+  });
+}
+
+/** تنزيل وسائط رسالة بصيغة base64 — يُستعمل لتفريغ الرسائل الصوتية */
+async function getMediaBase64(instanceName, messageKey, convertToMp4 = false) {
+  return request('POST', `/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`, {
+    message: { key: messageKey },
+    convertToMp4,
   });
 }
 
@@ -190,9 +236,24 @@ function extractMessageText(message) {
   );
 }
 
+/** استخراج رسالة صوتية إن وُجدت (بصمة صوتية أو ملف صوتي) */
+function extractAudio(message) {
+  if (!message || typeof message !== 'object') return null;
+  const audio = message.audioMessage || message.ephemeralMessage?.message?.audioMessage;
+  if (!audio) return null;
+
+  return {
+    mimetype: audio.mimetype || 'audio/ogg',
+    seconds: audio.seconds || null,
+    isVoiceNote: Boolean(audio.ptt),
+  };
+}
+
 /**
  * تحويل حدث MESSAGES_UPSERT إلى شكل بسيط يفهمه الوكيل.
- * يُعيد null لكل ما يجب تجاهله: رسائلنا نحن، المجموعات، غير النصي.
+ * يُعيد null لكل ما يجب تجاهله: رسائلنا نحن، المجموعات، وغير المدعوم.
+ *
+ * النوع `audio` يعود بلا نص — يتولّى المعالج تفريغه إلى نص قبل الوكيل.
  */
 function parseIncomingMessage(payload) {
   const data = payload?.data;
@@ -205,17 +266,27 @@ function parseIncomingMessage(payload) {
   const remoteJid = key.remoteJid;
   if (!remoteJid || isGroupOrBroadcast(remoteJid)) return null;
 
-  const text = extractMessageText(entry.message);
-  if (!text || !String(text).trim()) return null;
-
-  return {
+  const base = {
     instanceName: payload.instance || null,
     phoneJid: normalizeJid(remoteJid),
     messageId: key.id || null,
+    // المفتاح الكامل لازم لتعليم القراءة وتنزيل الوسائط
+    messageKey: { remoteJid, fromMe: Boolean(key.fromMe), id: key.id },
     pushName: entry.pushName || null,
-    text: String(text).trim(),
     timestamp: entry.messageTimestamp || null,
   };
+
+  const text = extractMessageText(entry.message);
+  if (text && String(text).trim()) {
+    return { ...base, type: 'text', text: String(text).trim() };
+  }
+
+  const audio = extractAudio(entry.message);
+  if (audio) {
+    return { ...base, type: 'audio', text: null, audio };
+  }
+
+  return null;
 }
 
 module.exports = {
@@ -233,7 +304,11 @@ module.exports = {
   setWebhook,
   findWebhook,
   sendText,
+  sendPresence,
+  markAsRead,
+  getMediaBase64,
   extractMessageText,
+  extractAudio,
   parseIncomingMessage,
   EVOLUTION_URL,
 };

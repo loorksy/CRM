@@ -274,6 +274,43 @@ router.delete('/identities/:id', ...admin, async (req, res) => {
   }
 });
 
+// ═══════════════════════ شخصية الوكيل ═══════════════════════
+
+const persona = require('../services/whatsapp/personaService');
+
+/** الشخصية الحالية + كل الخيارات المتاحة لبناء القوائم في اللوحة */
+router.get('/persona', ...admin, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      persona: await persona.getPersona(req.session.userId),
+      options: persona.getOptions(),
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+/** تخصيص الدور واللهجة والنبرة والمهارات والتعليمات الحرة */
+router.put('/persona', ...admin, async (req, res) => {
+  try {
+    const saved = await persona.savePersona(req.session.userId, req.body || {});
+    res.json({ success: true, persona: saved });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+});
+
+/** معاينة برومبت الشخصية كما سيراه النموذج — يساعد على ضبطها */
+router.get('/persona/preview', ...admin, async (req, res) => {
+  try {
+    const p = await persona.getPersona(req.session.userId);
+    res.json({ success: true, prompt: persona.renderPersonaPrompt(p) });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ═══════════════════════ سجل التدقيق ═══════════════════════
 
 router.get('/access-log', ...admin, async (req, res) => {

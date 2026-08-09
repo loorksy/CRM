@@ -16,6 +16,7 @@
 const { getDb } = require('../../db/database');
 const { getMemberDetail } = require('../memberDirectoryService');
 const { logAccess } = require('./identityService');
+const agentQuery = require('./agentQuery');
 
 const MONEY = (v) => {
   const n = Number(v || 0);
@@ -357,10 +358,50 @@ const TOOL_REGISTRY = {
   ],
 };
 
-/** الأدوات المتاحة لهذا النطاق فقط — لا يرى النموذج غيرها إطلاقاً */
+/**
+ * أدوات الاستعلام الحر — ما يجعل الوكيل قادراً على الإجابة عن أسئلة
+ * لم يتوقّعها أحد مسبقاً: مقارنات، تجميعات، فترات زمنية، نِسَب.
+ *
+ * الاستعلام يُنفَّذ باتصال دور قاعدة بيانات لا يملك صلاحية على أي جدول
+ * أساسي، وعلى عروض تحمل شرط النطاق داخل تعريفها. فالحرية هنا حرية في
+ * صياغة السؤال، لا في اختيار صاحب البيانات.
+ */
+const QUERY_TOOLS = [
+  {
+    name: 'describe_data',
+    description:
+      'استكشاف البيانات المتاحة: أسماء الجداول (العروض) وأعمدتها ووصف كل منها. ' +
+      'استدعِ هذه الأداة أولاً قبل أي استعلام لتعرف ما هو متاح.',
+    parameters: { type: 'object', properties: {}, required: [] },
+    handler: (scope) => agentQuery.describeSchema(scope),
+  },
+  {
+    name: 'query_data',
+    description:
+      'تنفيذ استعلام SQL للقراءة (SELECT) على العروض المتاحة للإجابة عن سؤال المستخدم. ' +
+      'يدعم التجميع والترتيب والفلترة والمقارنة بين الفترات. ' +
+      'أسماء الأعمدة عربية فضعها بين علامتَي اقتباس مزدوجتين مثل "الرصيد_المؤجل_دولار". ' +
+      'لا حاجة لإضافة شرط يخص هوية المستخدم — البيانات مفلترة مسبقاً على حسابه.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sql: { type: 'string', description: 'استعلام SELECT واحد بلا فاصلة منقوطة' },
+        purpose: { type: 'string', description: 'بجملة قصيرة: ما الذي يجيب عنه هذا الاستعلام' },
+      },
+      required: ['sql'],
+    },
+    handler: (scope, args) => agentQuery.runScopedQuery(scope, args.sql),
+  },
+];
+
+/**
+ * الأدوات المتاحة لهذا النطاق فقط — لا يرى النموذج غيرها إطلاقاً.
+ * تُضاف أدوات الاستعلام الحر عندما تكون طبقة الوكيل مُهيّأة على الخادم.
+ */
 function getToolsForScope(scope) {
   if (!scope) return [];
-  return TOOL_REGISTRY[scope.subjectType] || [];
+  const curated = TOOL_REGISTRY[scope.subjectType] || [];
+  return agentQuery.isEnabled() ? [...QUERY_TOOLS, ...curated] : curated;
 }
 
 /** تعريفات الأدوات بلا معالِجات، جاهزة لإرسالها للنموذج */

@@ -19,6 +19,7 @@ function check(name, cond, extra) {
 
   // ── تجهيز: مالكان مختلفان، ولكل منهما عضو ──
   await db.query(`DELETE FROM whatsapp_identities WHERE phone_jid LIKE '9999%'`);
+  await db.query(`DELETE FROM whatsapp_rate_limit WHERE phone_jid LIKE '9999%'`);
   await db.query(`DELETE FROM member_profiles WHERE member_user_id IN ('AAA111','BBB222')`);
   await db.query(`DELETE FROM deferred_salary_lines WHERE member_user_id IN ('AAA111','BBB222')`);
   await db.query(`DELETE FROM users WHERE username IN ('ownerA','ownerB')`);
@@ -126,6 +127,7 @@ function check(name, cond, extra) {
   // تنظيف
   await db.query(`DELETE FROM whatsapp_identities WHERE phone_jid LIKE '9999%'`);
   await db.query(`DELETE FROM whatsapp_access_log WHERE phone_jid LIKE '9999%'`);
+  await db.query(`DELETE FROM whatsapp_rate_limit WHERE phone_jid LIKE '9999%'`);
   await db.query(`DELETE FROM member_profiles WHERE member_user_id IN ('AAA111','BBB222')`);
   await db.query(`DELETE FROM deferred_salary_lines WHERE member_user_id IN ('AAA111','BBB222')`);
   await db.query(`DELETE FROM users WHERE username IN ('ownerA','ownerB')`);

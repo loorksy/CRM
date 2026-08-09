@@ -368,6 +368,35 @@ async function ensureWhatsappIdentityTables() {
   }
 }
 
+/** شخصية الوكيل: الدور واللهجة والأسلوب والمهارات المخصّصة لكل مالك نظام */
+async function ensureAgentPersonaTable() {
+  if (!pgPool) return;
+  const stmts = [
+    `CREATE TABLE IF NOT EXISTS whatsapp_agent_persona (
+       user_id INTEGER PRIMARY KEY,
+       role_title TEXT DEFAULT 'محاسب',
+       dialect TEXT DEFAULT 'levantine',
+       tone TEXT DEFAULT 'friendly',
+       verbosity TEXT DEFAULT 'balanced',
+       agent_name TEXT,
+       greeting TEXT,
+       custom_instructions TEXT,
+       skills_json TEXT,
+       emoji_enabled BOOLEAN DEFAULT TRUE,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ];
+  for (const s of stmts) {
+    try {
+      await pgPool.query(s);
+    } catch (e) {
+      if (!/already exists|duplicate/i.test(String(e.message))) {
+        console.warn('[DB] whatsapp agent persona:', e.message);
+      }
+    }
+  }
+}
+
 async function ensureAdminUser() {
   if (!pgPool) return;
   const r = await query('SELECT * FROM users WHERE username = $1', [process.env.ADMIN_USERNAME || 'admin']);
@@ -400,7 +429,17 @@ async function initDatabase() {
     await ensureUserSimpleFinancialTermsColumn();
     await ensureLedgerCancellationSupport();
     await ensureWhatsappIdentityTables();
+    await ensureAgentPersonaTable();
     await ensureAdminUser();
+
+    // طبقة بيانات الوكيل: دور مقيّد + عروض دلالية + RLS.
+    // تُتخطّى بالكامل إن لم يُضبط AGENT_DB_PASSWORD، فلا أثر لها إطلاقاً.
+    try {
+      const { ensureAgentDataLayer } = require('./agentRls');
+      await ensureAgentDataLayer({ query: (sql, params) => pgPool.query(sql, params) });
+    } catch (e) {
+      console.warn('[DB] طبقة بيانات الوكيل:', e.message);
+    }
     return getDb();
   }
 

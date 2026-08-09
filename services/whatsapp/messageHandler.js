@@ -13,6 +13,8 @@
 const evolution = require('./evolutionClient');
 const identity = require('./identityService');
 const agent = require('./agentBrain');
+const humanize = require('./humanize');
+const transcription = require('./transcription');
 
 const MSG_RATE_LIMIT = parseInt(process.env.WHATSAPP_RATE_LIMIT || '20', 10);
 const MSG_RATE_WINDOW_SEC = parseInt(process.env.WHATSAPP_RATE_WINDOW_SEC || '60', 10);
@@ -69,14 +71,16 @@ async function handleIncoming(payload, { instanceName } = {}) {
 
   const jid = incoming.phoneJid;
   const instance = incoming.instanceName || instanceName;
-  const text = incoming.text;
 
+  /** إرسال بسيط بإيقاع بشري خفيف — للرسائل القصيرة في مسار التفعيل */
   const send = async (message) => {
     if (!instance) {
       console.warn('[whatsapp] لا توجد نسخة لإرسال الرد إلى', jid);
       return;
     }
-    const res = await evolution.sendText(instance, jid, message);
+    const res = await evolution.sendText(instance, jid, humanize.toWhatsAppFormatting(message), {
+      delay: humanize.typingDelayFor(message),
+    });
     if (!res.ok) console.warn('[whatsapp] فشل إرسال الرد:', res.error);
   };
 
@@ -90,12 +94,48 @@ async function handleIncoming(payload, { instanceName } = {}) {
   // 2) تحديد الهوية من قاعدة البيانات وحدها
   const resolved = await identity.resolveScope(jid);
 
+  // العلامتان الزرقاوان: نعلّم القراءة فقط لمن نتعامل معه فعلاً.
+  // الأرقام المجهولة لا تحصل على تأكيد قراءة — لا نؤكد لها وجود نظام.
+  if (instance && resolved.identity) {
+    evolution.markAsRead(instance, incoming.messageKey).catch(() => {});
+  }
+
   // 3) الهوية غير جاهزة → مسار التفعيل، ولا شيء غيره
   if (!resolved.allowed) {
-    return handleUnverified(resolved, { jid, text, send });
+    const textForAuth = incoming.type === 'text' ? incoming.text : '';
+    if (incoming.type === 'audio') {
+      await send('لتفعيل حسابك أرسل رمز التفعيل نصاً، مو تسجيل صوتي.');
+      return { handled: true, reason: 'audio_before_verification' };
+    }
+    return handleUnverified(resolved, { jid, text: textForAuth, send });
   }
 
   const scope = resolved.scope;
+
+  // 4) رسالة صوتية → نفرّغها إلى نص قبل أي شيء آخر
+  let text = incoming.text;
+  if (incoming.type === 'audio') {
+    // «يسجّل الآن» أثناء التفريغ: إشارة مفهومة أننا نستمع
+    if (instance) evolution.sendPresence(instance, jid, 'recording', 4000).catch(() => {});
+
+    const stt = await transcription.transcribeVoiceNote(
+      evolution, instance, incoming.messageKey, incoming.audio
+    );
+
+    await identity.logAccess({
+      phoneJid: jid, identityId: scope.identityId, ownerUserId: scope.ownerUserId,
+      action: stt.ok ? 'voice_transcribed' : 'voice_failed',
+      allowed: stt.ok, detail: stt.ok ? stt.text.slice(0, 300) : stt.reason,
+    });
+
+    if (!stt.ok) {
+      await send(transcription.failureReply(stt.reason));
+      return { handled: true, reason: `voice_${stt.reason}` };
+    }
+    text = stt.text;
+  }
+
+  if (!text || !text.trim()) return { handled: false, reason: 'empty' };
 
   if (isLogoutCommand(text)) {
     await identity.clearSession(jid);
@@ -129,7 +169,27 @@ async function handleIncoming(payload, { instanceName } = {}) {
     action: 'message_received', detail: text.slice(0, 500),
   });
 
-  const { reply, history: newHistory } = await agent.generateReply(scope, history, text);
+  /**
+   * «يكتب الآن» من اللحظة الأولى. تفكير النموذج واستعلاماته قد تستغرق
+   * ثوانٍ، وتأخير sendText لا يبدأ إلا بعد جهوز الرد — فلولا هذه النبضة
+   * لرأى المستخدم صمتاً ثم رداً مفاجئاً.
+   *
+   * حالة الكتابة في واتساب تنطفئ وحدها، لذلك نجدّدها دورياً حتى ينتهي
+   * التفكير.
+   */
+  let typingTimer = null;
+  if (instance) {
+    const pulse = () => evolution.sendPresence(instance, jid, 'composing', 8000).catch(() => {});
+    pulse();
+    typingTimer = setInterval(pulse, 7000);
+  }
+
+  let reply, newHistory;
+  try {
+    ({ reply, history: newHistory } = await agent.generateReply(scope, history, text));
+  } finally {
+    if (typingTimer) clearInterval(typingTimer);
+  }
 
   await identity.saveSession(jid, {
     identityId: scope.identityId,
@@ -137,7 +197,15 @@ async function handleIncoming(payload, { instanceName } = {}) {
     history: newHistory,
   });
 
-  await send(reply);
+  if (instance) {
+    const result = await humanize.sendHumanized(evolution, instance, jid, reply, {
+      enabled: process.env.WHATSAPP_HUMANIZE !== '0',
+      speed: parseFloat(process.env.WHATSAPP_TYPING_SPEED || '1'),
+      quoted: incoming.type === 'audio' ? { key: incoming.messageKey } : undefined,
+    });
+    if (result.error) console.warn('[whatsapp] فشل إرسال جزء من الرد:', result.error);
+  }
+
   return { handled: true, reason: 'answered' };
 }
 
