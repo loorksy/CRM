@@ -141,6 +141,8 @@
         <%- include('partials/member-directory-detail') %>
       <% } else if (page === 'member-adjustments') { %>
         <%- include('partials/member-adjustments') %>
+      <% } else if (page === 'whatsapp') { %>
+        <%- include('partials/whatsapp') %>
       <% } %>
     </div>
   </main>
@@ -255,6 +257,9 @@
   <% } %>
   <% if (page === 'member-adjustments') { %>
     <script src="/js/member-adjustments.js"></script>
+  <% } %>
+  <% if (page === 'whatsapp') { %>
+    <script src="/js/whatsapp.js"></script>
   <% } %>
 </body>
 </html>
