@@ -151,7 +151,7 @@
                 <h4 class="font-bold text-slate-800">OpenAI</h4>
                 <p class="text-xs text-slate-500">GPT-4o, GPT-4, GPT-3.5</p>
               </div>
-              <span class="mr-auto text-xs font-medium py-1 px-3 rounded-full" id="openaiStatusBadge"></span>
+              <span class="ms-auto text-xs font-medium py-1 px-3 rounded-full" id="openaiStatusBadge"></span>
             </div>
             <div class="flex gap-3 max-md:flex-col">
               <input type="password" id="openaiKey" placeholder="sk-..." dir="ltr"
@@ -182,7 +182,7 @@
                 <h4 class="font-bold text-slate-800">Google Gemini</h4>
                 <p class="text-xs text-slate-500">Gemini Pro, Gemini Flash</p>
               </div>
-              <span class="mr-auto text-xs font-medium py-1 px-3 rounded-full" id="geminiStatusBadge"></span>
+              <span class="ms-auto text-xs font-medium py-1 px-3 rounded-full" id="geminiStatusBadge"></span>
             </div>
             <div class="flex gap-3 max-md:flex-col">
               <input type="password" id="geminiKey" placeholder="AIza..." dir="ltr"
@@ -204,8 +204,40 @@
             </div>
           </div>
 
+          <div class="p-5 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                <i class="fas fa-route text-violet-600"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-800">OpenRouter</h4>
+                <p class="text-xs text-slate-500">مزوّد احتياطي — نماذج مجانية داعمة للأدوات</p>
+              </div>
+              <span class="ms-auto text-xs font-medium py-1 px-3 rounded-full" id="openrouterStatusBadge"></span>
+            </div>
+            <p class="mb-4 text-sm leading-relaxed text-slate-600">تُعرض النماذج المجانية التي تدعم استدعاء الأدوات فقط. الوكيل يستعلم من قاعدة البيانات عبر الأدوات، ونموذج بلا هذا الدعم سيؤلّف الأرقام بدل أن يجلبها. القائمة تتغيّر باستمرار لدى OpenRouter.</p>
+            <div class="flex gap-3 max-md:flex-col">
+              <input type="password" id="openrouterKey" placeholder="sk-or-v1-..." dir="ltr"
+                class="flex-1 py-3 px-4 border-2 border-slate-200 rounded-xl text-sm bg-white text-slate-800 transition-all duration-300 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 placeholder:text-slate-400">
+              <button type="button" id="openrouterSaveBtn" onclick="saveAIKey('openrouter')" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all duration-300 cursor-pointer active:scale-[0.97] bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">
+                <i class="fas fa-save"></i> حفظ
+              </button>
+            </div>
+            <div class="mt-4 hidden" id="openrouterModelsSection">
+              <label class="block mb-2 font-semibold text-xs text-slate-600">اختر الموديل:</label>
+              <div class="flex gap-3 max-md:flex-col">
+                <select id="openrouterModelSelect" onchange="selectModel('openrouter', this.value)"
+                  class="flex-1 py-3 px-4 border-2 border-slate-200 rounded-xl text-sm bg-white text-slate-800 focus:outline-none focus:border-indigo-600">
+                </select>
+                <button type="button" onclick="refreshModels('openrouter')" class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-300 cursor-pointer active:scale-[0.97] bg-slate-200 text-slate-700 hover:bg-slate-300 whitespace-nowrap">
+                  <i class="fas fa-sync-alt"></i> تحديث
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <p class="text-sm text-amber-700"><i class="fas fa-shield-halved ml-1"></i> مفاتيح API تُحفظ مشفّرة بالكامل على الخادم ولا يمكن قراءتها أو تسريبها.</p>
+            <p class="text-sm text-amber-700"><i class="fas fa-shield-halved me-1"></i> مفاتيح API تُحفظ مشفّرة بالكامل على الخادم ولا يمكن قراءتها أو تسريبها.</p>
           </div>
           <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
             <p class="text-sm text-indigo-700"><i class="fas fa-link ml-1"></i> يتم ربط المفتاح والموديل تلقائياً بأداة <strong>ترتيب الرسائل</strong> — بعد الحفظ يمكنك الذهاب إلى ترتيب الرسائل واستخدام التحليل مباشرة.</p>

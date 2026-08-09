@@ -73,9 +73,12 @@ function createRouter(io) {
         });
       }
       if (!models || models.length === 0) {
+        const emptyMsg = provider === 'openrouter'
+          ? 'لم يُعثر على نموذج مجاني يدعم استدعاء الأدوات. القائمة لدى OpenRouter تتغيّر باستمرار — جرّب لاحقاً دون إرخاء شرط الأدوات.'
+          : 'لم يتم جلب أي موديلات. تحقق من صحة المفتاح وأن الحساب يسمح باستخدام واجهة الـ API.';
         return res.json({
           success: false,
-          message: 'لم يتم جلب أي موديلات. تحقق من صحة المفتاح وأن الحساب يسمح باستخدام واجهة الـ API.',
+          message: emptyMsg,
         });
       }
 
