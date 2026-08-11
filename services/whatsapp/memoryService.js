@@ -22,15 +22,15 @@
 
 const { getDb } = require('../../db/database');
 
-const MAX_MEMORIES = parseInt(process.env.WHATSAPP_MEMORY_MAX || '40', 10);
-const MAX_RECALL = parseInt(process.env.WHATSAPP_MEMORY_RECALL || '12', 10);
-const MAX_CONTENT = parseInt(process.env.WHATSAPP_MEMORY_MAX_CHARS || '400', 10);
+function maxMemories() { return parseInt(process.env.WHATSAPP_MEMORY_MAX || '40', 10); }
+function maxRecall() { return parseInt(process.env.WHATSAPP_MEMORY_RECALL || '12', 10); }
+function maxContent() { return parseInt(process.env.WHATSAPP_MEMORY_MAX_CHARS || '400', 10); }
 
 const KINDS = ['fact', 'preference', 'summary'];
 
 /** تطبيع وقصّ المحتوى قبل التخزين */
 function normalize(content) {
-  return String(content || '').replace(/\s+/g, ' ').trim().slice(0, MAX_CONTENT);
+  return String(content || '').replace(/\s+/g, ' ').trim().slice(0, maxContent());
 }
 
 /**
@@ -88,7 +88,7 @@ async function pruneIfNeeded(scope) {
     [scope.identityId, scope.ownerUserId]
   );
 
-  const excess = (rows[0]?.c || 0) - MAX_MEMORIES;
+  const excess = (rows[0]?.c || 0) - maxMemories();
   if (excess <= 0) return 0;
 
   await db.query(
@@ -111,11 +111,11 @@ async function pruneIfNeeded(scope) {
  * استرجاع ما يستحق الحضور في البرومبت.
  * الترتيب: الخلاصات أولاً، ثم الأهم، ثم الأحدث استعمالاً.
  */
-async function recall(scope, limit = MAX_RECALL) {
+async function recall(scope, limit = maxRecall()) {
   const db = getDb();
   if (!scope?.identityId || !scope?.ownerUserId) return [];
 
-  const n = Math.min(Math.max(parseInt(limit, 10) || MAX_RECALL, 1), 30);
+  const n = Math.min(Math.max(parseInt(limit, 10) || maxRecall(), 1), 30);
 
   const rows = (await db.query(
     `SELECT id, kind, content, importance, created_at
@@ -234,6 +234,6 @@ module.exports = {
   renderMemoryPrompt,
   summarizeConversation,
   pruneIfNeeded,
-  MAX_MEMORIES,
-  MAX_RECALL,
+  get MAX_MEMORIES() { return maxMemories(); },
+  get MAX_RECALL() { return maxRecall(); },
 };

@@ -16,8 +16,8 @@ const agent = require('./agentBrain');
 const humanize = require('./humanize');
 const transcription = require('./transcription');
 
-const MSG_RATE_LIMIT = parseInt(process.env.WHATSAPP_RATE_LIMIT || '20', 10);
-const MSG_RATE_WINDOW_SEC = parseInt(process.env.WHATSAPP_RATE_WINDOW_SEC || '60', 10);
+function msgRateLimit() { return parseInt(process.env.WHATSAPP_RATE_LIMIT || '20', 10); }
+function msgRateWindowSec() { return parseInt(process.env.WHATSAPP_RATE_WINDOW_SEC || '60', 10); }
 
 /** حماية من إعادة تسليم نفس الحدث من Evolution (تكرار الـ webhook) */
 const recentMessageIds = new Map();
@@ -85,7 +85,7 @@ async function handleIncoming(payload, { instanceName } = {}) {
   };
 
   // 1) تحديد المعدّل — يُطبَّق قبل أي عمل، حتى على الأرقام غير المسجّلة
-  const withinLimit = await identity.checkRateLimit(jid, 'messages', MSG_RATE_LIMIT, MSG_RATE_WINDOW_SEC);
+  const withinLimit = await identity.checkRateLimit(jid, 'messages', msgRateLimit(), msgRateWindowSec());
   if (!withinLimit) {
     await identity.logAccess({ phoneJid: jid, action: 'rate_limited', allowed: false });
     return { handled: false, reason: 'rate_limited' };

@@ -12,20 +12,39 @@
  * عند التضمين (EVOLUTION_EMBEDDED=1) يعمل Evolution داخل نفس العملية على
  * نفس المنفذ، فنناديه عبر العنوان المحلي على مسار التركيب. نبقى على REST
  * بدل استدعاء الدوال الداخلية حتى تمر الطلبات بحُرّاس التوثيق نفسها.
+ *
+ * تُقرأ المفاتيح من process.env في كل طلب بعد hydrate/إعدادات الواجهة
+ * حتى لا نحتاج إعادة تشغيل عند تغييرها من الإعدادات.
  */
-const EMBEDDED = process.env.EVOLUTION_EMBEDDED === '1';
-const MOUNT_PATH = process.env.EVOLUTION_MOUNT_PATH || '/whatsapp-api';
-const DEFAULT_URL = EMBEDDED
-  ? `http://127.0.0.1:${process.env.PORT || 3020}${MOUNT_PATH}`
-  : 'http://127.0.0.1:8080';
+function isEmbedded() {
+  return process.env.EVOLUTION_EMBEDDED === '1';
+}
 
-const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || DEFAULT_URL).replace(/\/+$/, '');
-const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
-const REQUEST_TIMEOUT_MS = parseInt(process.env.EVOLUTION_TIMEOUT_MS || '20000', 10);
+function mountPath() {
+  return process.env.EVOLUTION_MOUNT_PATH || '/whatsapp-api';
+}
+
+function defaultEvolutionUrl() {
+  return isEmbedded()
+    ? `http://127.0.0.1:${process.env.PORT || 3020}${mountPath()}`
+    : 'http://127.0.0.1:8080';
+}
+
+function evolutionUrl() {
+  return (process.env.EVOLUTION_API_URL || defaultEvolutionUrl()).replace(/\/+$/, '');
+}
+
+function evolutionKey() {
+  return process.env.EVOLUTION_API_KEY || '';
+}
+
+function requestTimeoutMs() {
+  return parseInt(process.env.EVOLUTION_TIMEOUT_MS || '20000', 10);
+}
 
 /** هل التكامل مُهيّأ أصلاً؟ يُستخدم لتعطيل الميزة بهدوء بدل رمي أخطاء */
 function isConfigured() {
-  return Boolean(EVOLUTION_KEY);
+  return Boolean(evolutionKey());
 }
 
 /**
@@ -33,19 +52,20 @@ function isConfigured() {
  * يُعيد دائماً { ok, status, data, error } ليتعامل معها المستدعي بأمان.
  */
 async function request(method, path, body) {
-  if (!isConfigured()) {
+  const key = evolutionKey();
+  if (!key) {
     return { ok: false, status: 0, data: null, error: 'EVOLUTION_API_KEY غير مضبوط' };
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), requestTimeoutMs());
 
   try {
-    const res = await fetch(`${EVOLUTION_URL}${path}`, {
+    const res = await fetch(`${evolutionUrl()}${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        apikey: EVOLUTION_KEY,
+        apikey: key,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
@@ -310,5 +330,7 @@ module.exports = {
   extractMessageText,
   extractAudio,
   parseIncomingMessage,
-  EVOLUTION_URL,
+  get EVOLUTION_URL() {
+    return evolutionUrl();
+  },
 };

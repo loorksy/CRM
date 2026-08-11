@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 const { getDb } = require('../db/database');
 
 const { getCurrencySymbol } = require('../utils/numbers');
@@ -131,6 +131,63 @@ router.post('/update-profile', requireAuth, async (req, res) => {
     res.json({ success: false, message: 'حدث خطأ أثناء تحديث الملف الشخصي' });
   }
 });
+
+router.get('/system', requireAuth, requireRoleAdmin, async (req, res) => {
+  try {
+    const systemSettings = require('../services/systemSettings');
+    const snap = await systemSettings.getPublicSnapshot();
+    res.json({ success: true, ...snap });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'فشل التحميل' });
+  }
+});
+
+router.post('/system', requireAuth, requireRoleAdmin, async (req, res) => {
+  try {
+    const systemSettings = require('../services/systemSettings');
+    const values = (req.body && req.body.values) || {};
+    const saved = await systemSettings.setMany(values);
+
+    // مزامنة Google credentials مع جدول الربط إن وُجدت
+    if (saved.includes('GOOGLE_CLIENT_ID') || saved.includes('GOOGLE_CLIENT_SECRET')) {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (clientId && clientSecret) {
+        const db = getDb();
+        const row = (await db.query('SELECT id FROM google_sheets_config WHERE id = 1')).rows[0];
+        if (!row) {
+          await db.query(
+            `INSERT INTO google_sheets_config (id, credentials, sync_enabled, updated_at)
+             VALUES (1, $1, 0, CURRENT_TIMESTAMP)`,
+            [JSON.stringify({ client_id: clientId, client_secret: clientSecret })]
+          );
+        } else {
+          await db.query(
+            `UPDATE google_sheets_config
+             SET credentials = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
+            [JSON.stringify({ client_id: clientId, client_secret: clientSecret })]
+          );
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: saved.length
+        ? `تم حفظ ${saved.length} إعداداً وتطبيقها فوراً`
+        : 'لم يُحفظ شيء (اترك الأسرار المقنّعة كما هي إن لم ترد تغييرها)',
+      saved,
+    });
+  } catch (e) {
+    console.error('[settings] system save:', e);
+    res.status(500).json({ success: false, message: e.message || 'فشل الحفظ' });
+  }
+});
+
+function requireRoleAdmin(req, res, next) {
+  if (req.session?.user?.role === 'admin') return next();
+  return res.status(403).json({ success: false, message: 'صلاحية المسؤول مطلوبة' });
+}
 
 router.get('/reset-data-options', requireAuth, (req, res) => {
   const { RESET_CATEGORIES } = require('../services/resetDataService');

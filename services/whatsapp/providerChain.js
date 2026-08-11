@@ -13,14 +13,13 @@
 const { getDb } = require('../../db/database');
 const { decrypt } = require('../../utils/crypto');
 
-/** المزوّد الذي يُجرَّب أولاً. الافتراضي: الأحدث تحديثاً في الإعدادات. */
-const PREFERRED = (process.env.WHATSAPP_AI_PREFERRED || '').trim();
-
-/** ترتيب احتياطي صريح، مفصول بفواصل. مثال: openai,openrouter,gemini */
-const ORDER = (process.env.WHATSAPP_AI_ORDER || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+function preferredProvider() { return (process.env.WHATSAPP_AI_PREFERRED || '').trim(); }
+function providerOrder() {
+  return (process.env.WHATSAPP_AI_ORDER || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 /**
  * هل يستحق هذا الخطأ الانتقال إلى المزوّد التالي؟
@@ -75,6 +74,7 @@ async function getProviderChain() {
   if (!usable.length) return [];
 
   // ترتيب صريح من البيئة إن وُجد
+  const ORDER = providerOrder();
   if (ORDER.length) {
     const ranked = [];
     for (const name of ORDER) {
@@ -86,6 +86,7 @@ async function getProviderChain() {
   }
 
   // وإلا: المفضّل أولاً ثم الباقي بترتيب التحديث
+  const PREFERRED = preferredProvider();
   if (PREFERRED) {
     const idx = usable.findIndex((u) => u.provider === PREFERRED);
     if (idx > 0) {

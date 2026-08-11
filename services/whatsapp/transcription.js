@@ -13,9 +13,9 @@
 const OpenAI = require('openai');
 const aiService = require('../aiService');
 
-const MODEL = process.env.WHATSAPP_STT_MODEL || 'whisper-1';
-const MAX_SECONDS = parseInt(process.env.WHATSAPP_STT_MAX_SECONDS || '300', 10);
-const MAX_BYTES = parseInt(process.env.WHATSAPP_STT_MAX_BYTES || '20000000', 10);
+function sttModel() { return process.env.WHATSAPP_STT_MODEL || 'whisper-1'; }
+function maxSeconds() { return parseInt(process.env.WHATSAPP_STT_MAX_SECONDS || '300', 10); }
+function maxBytes() { return parseInt(process.env.WHATSAPP_STT_MAX_BYTES || '20000000', 10); }
 
 /** مفتاح OpenAI: من إعدادات النظام أولاً، ثم من البيئة */
 async function resolveOpenAiKey() {
@@ -54,7 +54,7 @@ function extensionFor(mimetype) {
 async function transcribeVoiceNote(evolution, instanceName, messageKey, audioMeta = {}) {
   if (!isEnabled()) return { ok: false, reason: 'disabled' };
 
-  if (audioMeta.seconds && audioMeta.seconds > MAX_SECONDS) {
+  if (audioMeta.seconds && audioMeta.seconds > maxSeconds()) {
     return { ok: false, reason: 'too_long' };
   }
 
@@ -72,7 +72,7 @@ async function transcribeVoiceNote(evolution, instanceName, messageKey, audioMet
 
   const buffer = Buffer.from(base64, 'base64');
   if (!buffer.length) return { ok: false, reason: 'empty_media' };
-  if (buffer.length > MAX_BYTES) return { ok: false, reason: 'too_large' };
+  if (buffer.length > maxBytes()) return { ok: false, reason: 'too_large' };
 
   const mimetype = media.data?.mimetype || audioMeta.mimetype || 'audio/ogg';
   const filename = `voice.${extensionFor(mimetype)}`;
@@ -83,7 +83,7 @@ async function transcribeVoiceNote(evolution, instanceName, messageKey, audioMet
 
     const result = await client.audio.transcriptions.create({
       file,
-      model: MODEL,
+      model: sttModel(),
       language: 'ar',
       // تلميح بالمجال يحسّن دقة المصطلحات المحاسبية والأسماء
       prompt: 'محادثة محاسبية عن الرواتب والأرصدة المؤجلة والديون والدورات المالية.',

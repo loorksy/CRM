@@ -4,13 +4,16 @@ const { requireAuth } = require('../middleware/auth');
 const { getDb } = require('../db/database');
 const { google } = require('googleapis');
 
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${process.env.BASE_URL || 'http://localhost:3000'}/sheets/callback`;
+function redirectUri() {
+  return process.env.GOOGLE_REDIRECT_URI
+    || `${process.env.PUBLIC_BASE_URL || process.env.BASE_URL || 'http://localhost:3000'}/sheets/callback`;
+}
 
 function getOAuth2Client(credentials) {
   const clientId = credentials?.client_id || process.env.GOOGLE_CLIENT_ID;
   const clientSecret = credentials?.client_secret || process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
-  return new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI);
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri());
 }
 
 async function ensureConfigRow(db) {

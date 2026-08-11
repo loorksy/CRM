@@ -18,10 +18,9 @@ const { getPersona, renderPersonaPrompt } = require('./personaService');
 const providerChain = require('./providerChain');
 const memoryService = require('./memoryService');
 
-const MAX_TOOL_ROUNDS = parseInt(process.env.WHATSAPP_AGENT_MAX_ROUNDS || '8', 10);
-const MAX_REPLY_CHARS = parseInt(process.env.WHATSAPP_MAX_REPLY_CHARS || '3000', 10);
-/** عدد الأدوار الذي يستدعي تكثيف النصف الأقدم في خلاصة محفوظة */
-const SUMMARIZE_AFTER_TURNS = parseInt(process.env.WHATSAPP_SUMMARIZE_AFTER || '10', 10);
+function maxToolRounds() { return parseInt(process.env.WHATSAPP_AGENT_MAX_ROUNDS || '8', 10); }
+function maxReplyChars() { return parseInt(process.env.WHATSAPP_MAX_REPLY_CHARS || '3000', 10); }
+function summarizeAfterTurns() { return parseInt(process.env.WHATSAPP_SUMMARIZE_AFTER || '10', 10); }
 
 /**
  * برومبت النظام. القسم الأول شخصية قابلة للتخصيص من لوحة التحكم،
@@ -95,7 +94,7 @@ async function runOpenAI(config, scope, systemPrompt, history, userText) {
     { role: 'user', content: userText },
   ];
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+  for (let round = 0; round < maxToolRounds(); round++) {
     const response = await client.chat.completions.create({
       model: config.selected_model,
       messages,
@@ -169,7 +168,7 @@ async function runGemini(config, scope, systemPrompt, history, userText) {
     { role: 'user', parts: [{ text: userText }] },
   ];
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+  for (let round = 0; round < maxToolRounds(); round++) {
     const result = await model.generateContent({
       contents,
       generationConfig: { temperature: 0.2, maxOutputTokens: 1200 },
@@ -259,7 +258,7 @@ async function generateReply(scope, history, userText) {
 
   const reply = outcome.result;
   const text = String(reply || '').trim() || 'لم أفهم طلبك. جرّب صياغة أخرى.';
-  const trimmed = text.length > MAX_REPLY_CHARS ? text.slice(0, MAX_REPLY_CHARS) + '…' : text;
+  const trimmed = text.length > maxReplyChars() ? text.slice(0, maxReplyChars()) + '…' : text;
 
   const newHistory = [
     ...safeHistory,
@@ -271,7 +270,7 @@ async function generateReply(scope, history, userText) {
    * حين تطول المحادثة، نكثّف نصفها الأقدم في خلاصة ونُبقيها في الذاكرة.
    * بلا هذا يضيع سياق ما قبل آخر 12 دوراً نهائياً عند انتهاء الجلسة.
    */
-  if (process.env.WHATSAPP_MEMORY_ENABLED !== '0' && newHistory.length >= SUMMARIZE_AFTER_TURNS) {
+  if (process.env.WHATSAPP_MEMORY_ENABLED !== '0' && newHistory.length >= summarizeAfterTurns()) {
     const older = newHistory.slice(0, Math.floor(newHistory.length / 2));
     memoryService
       .summarizeConversation(scope, older, (prompt) =>
