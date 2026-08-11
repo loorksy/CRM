@@ -25,8 +25,8 @@
 const { Pool } = require('pg');
 const { catalogFor } = require('../../db/agentViews');
 
-const MAX_ROWS = parseInt(process.env.AGENT_QUERY_MAX_ROWS || '200', 10);
-const TIMEOUT_MS = parseInt(process.env.AGENT_QUERY_TIMEOUT_MS || '8000', 10);
+function maxRows() { return parseInt(process.env.AGENT_QUERY_MAX_ROWS || '200', 10); }
+function timeoutMs() { return parseInt(process.env.AGENT_QUERY_TIMEOUT_MS || '8000', 10); }
 
 let agentPool = null;
 
@@ -120,12 +120,12 @@ async function runScopedQuery(scope, sql) {
   if (!check.ok) return { error: check.error };
 
   // سقف صفوف مفروض من الخارج: لا يستطيع النموذج تجاوزه بحذف LIMIT
-  const wrapped = `SELECT * FROM (${check.sql}) AS agent_result LIMIT ${MAX_ROWS}`;
+  const wrapped = `SELECT * FROM (${check.sql}) AS agent_result LIMIT ${maxRows()}`;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN READ ONLY');
-    await client.query(`SET LOCAL statement_timeout = ${TIMEOUT_MS}`);
+    await client.query(`SET LOCAL statement_timeout = ${timeoutMs()}`);
 
     // نضبط النطاق بـ SET LOCAL لا بدالة set_config، حتى نستطيع منع الدور
     // من استدعاء set_config أصلاً — فلا يبقى للاستعلام أي طريق لتغيير نطاقه.
@@ -143,7 +143,7 @@ async function runScopedQuery(scope, sql) {
 
     return {
       rowCount: result.rowCount,
-      truncated: result.rowCount >= MAX_ROWS,
+      truncated: result.rowCount >= maxRows(),
       columns: result.fields.map((f) => f.name),
       rows: result.rows,
     };
@@ -215,4 +215,4 @@ async function closePool() {
   }
 }
 
-module.exports = { runScopedQuery, describeSchema, validateSql, isEnabled, closePool, MAX_ROWS };
+module.exports = { runScopedQuery, describeSchema, validateSql, isEnabled, closePool, get MAX_ROWS() { return maxRows(); } };

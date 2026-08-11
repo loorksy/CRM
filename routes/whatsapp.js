@@ -16,13 +16,16 @@ const { handleIncoming } = require('../services/whatsapp/messageHandler');
 
 const router = express.Router();
 
-const WEBHOOK_SECRET = process.env.WHATSAPP_WEBHOOK_SECRET || '';
+function webhookSecret() {
+  return process.env.WHATSAPP_WEBHOOK_SECRET || '';
+}
 
 /** مقارنة ثابتة الزمن للسر المشترك */
 function secretMatches(provided) {
-  if (!WEBHOOK_SECRET) return false;
+  const secret = webhookSecret();
+  if (!secret) return false;
   const a = Buffer.from(String(provided || ''));
-  const b = Buffer.from(WEBHOOK_SECRET);
+  const b = Buffer.from(secret);
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }
@@ -73,7 +76,7 @@ router.get('/status', ...admin, async (req, res) => {
       return res.json({
         success: true,
         configured: false,
-        message: 'EVOLUTION_API_KEY غير مضبوط في ملف البيئة',
+        message: 'EVOLUTION_API_KEY غير مضبوط — اضبطه من الإعدادات ← النظام',
         config: cfg || null,
       });
     }
@@ -87,7 +90,7 @@ router.get('/status', ...admin, async (req, res) => {
     res.json({
       success: true,
       configured: true,
-      webhookSecretSet: Boolean(WEBHOOK_SECRET),
+      webhookSecretSet: Boolean(webhookSecret()),
       config: cfg || null,
       connectionState: state,
     });
@@ -100,10 +103,11 @@ router.get('/status', ...admin, async (req, res) => {
 router.post('/instance', ...admin, async (req, res) => {
   try {
     if (!evolution.isConfigured()) {
-      return res.status(400).json({ success: false, message: 'EVOLUTION_API_KEY غير مضبوط' });
+      return res.status(400).json({ success: false, message: 'EVOLUTION_API_KEY غير مضبوط — اضبطه من الإعدادات ← النظام' });
     }
-    if (!WEBHOOK_SECRET) {
-      return res.status(400).json({ success: false, message: 'WHATSAPP_WEBHOOK_SECRET غير مضبوط' });
+    const secret = webhookSecret();
+    if (!secret) {
+      return res.status(400).json({ success: false, message: 'WHATSAPP_WEBHOOK_SECRET غير مضبوط — اضبطه من الإعدادات ← النظام' });
     }
 
     const instanceName = String(req.body.instanceName || `lorkerp-${req.session.userId}`).trim();
@@ -125,13 +129,13 @@ router.post('/instance', ...admin, async (req, res) => {
     ).replace(/\/+$/, '');
 
     if (!publicUrl) {
-      return res.status(400).json({ success: false, message: 'PUBLIC_BASE_URL غير مضبوط — يحتاجه Evolution للوصول إلى الـ webhook' });
+      return res.status(400).json({ success: false, message: 'PUBLIC_BASE_URL غير مضبوط — اضبطه من الإعدادات ← النظام' });
     }
 
     const hook = await evolution.setWebhook(
       instanceName,
       `${publicUrl}/api/whatsapp/webhook`,
-      WEBHOOK_SECRET
+      secret
     );
     if (!hook.ok) {
       return res.status(502).json({ success: false, message: `فشل ضبط الـ webhook: ${hook.error}` });

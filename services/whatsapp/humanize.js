@@ -9,14 +9,11 @@
  * لا شيء هنا يمس البيانات أو الصلاحيات — تنسيق وتوقيت فقط.
  */
 
-/** سرعة كتابة بشرية معقولة بالعربية: نحو 25 حرفاً في الثانية عند القراءة السريعة */
-const CHARS_PER_SECOND = parseFloat(process.env.WHATSAPP_TYPING_CPS || '22');
-const MIN_TYPING_MS = parseInt(process.env.WHATSAPP_TYPING_MIN_MS || '1200', 10);
-const MAX_TYPING_MS = parseInt(process.env.WHATSAPP_TYPING_MAX_MS || '9000', 10);
-
-/** حد تقسيم الرسالة. أطول من هذا يُقسَّم إلى فقاعات متتابعة. */
-const CHUNK_TARGET = parseInt(process.env.WHATSAPP_CHUNK_CHARS || '600', 10);
-const MAX_CHUNKS = parseInt(process.env.WHATSAPP_MAX_CHUNKS || '4', 10);
+function charsPerSecond() { return parseFloat(process.env.WHATSAPP_TYPING_CPS || '22'); }
+function minTypingMs() { return parseInt(process.env.WHATSAPP_TYPING_MIN_MS || '1200', 10); }
+function maxTypingMs() { return parseInt(process.env.WHATSAPP_TYPING_MAX_MS || '9000', 10); }
+function chunkTarget() { return parseInt(process.env.WHATSAPP_CHUNK_CHARS || '600', 10); }
+function maxChunks() { return parseInt(process.env.WHATSAPP_MAX_CHUNKS || '4', 10); }
 
 /**
  * زمن الكتابة المناسب لنص معيّن، مع تشويش بسيط.
@@ -24,9 +21,9 @@ const MAX_CHUNKS = parseInt(process.env.WHATSAPP_MAX_CHUNKS || '4', 10);
  */
 function typingDelayFor(text, { speed = 1 } = {}) {
   const length = String(text || '').length;
-  const base = (length / Math.max(CHARS_PER_SECOND * speed, 1)) * 1000;
+  const base = (length / Math.max(charsPerSecond() * speed, 1)) * 1000;
   const jitter = base * (0.85 + Math.random() * 0.3);
-  return Math.round(Math.min(Math.max(jitter, MIN_TYPING_MS), MAX_TYPING_MS));
+  return Math.round(Math.min(Math.max(jitter, minTypingMs()), maxTypingMs()));
 }
 
 /**
@@ -66,7 +63,7 @@ function toWhatsAppFormatting(text) {
  * تقسيم رد طويل إلى فقاعات متتابعة عند حدود طبيعية.
  * الأولوية: فقرة فارغة، ثم نهاية سطر، ثم نهاية جملة.
  */
-function splitReply(text, { target = CHUNK_TARGET, maxChunks = MAX_CHUNKS } = {}) {
+function splitReply(text, { target = chunkTarget(), maxChunks: max = maxChunks() } = {}) {
   const clean = String(text || '').trim();
   if (!clean) return [];
   if (clean.length <= target) return [clean];
@@ -115,9 +112,9 @@ function splitReply(text, { target = CHUNK_TARGET, maxChunks = MAX_CHUNKS } = {}
   }
 
   // احترام السقف: ما زاد يُدمج في الفقاعة الأخيرة بدل ضياعه
-  if (refined.length <= maxChunks) return refined;
-  const head = refined.slice(0, maxChunks - 1);
-  head.push(refined.slice(maxChunks - 1).join('\n\n'));
+  if (refined.length <= max) return refined;
+  const head = refined.slice(0, max - 1);
+  head.push(refined.slice(max - 1).join('\n\n'));
   return head;
 }
 
@@ -167,5 +164,5 @@ module.exports = {
   toWhatsAppFormatting,
   splitReply,
   sendHumanized,
-  CHUNK_TARGET,
+  get CHUNK_TARGET() { return chunkTarget(); },
 };

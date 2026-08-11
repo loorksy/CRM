@@ -479,6 +479,14 @@ async function initDatabase() {
     } catch (e) {
       console.warn('[DB] طبقة بيانات الوكيل:', e.message);
     }
+
+    // حمّل إعدادات النظام المحفوظة من الواجهة إلى process.env (بلا إعادة تشغيل لاحقاً)
+    try {
+      const { hydrateEnvFromDb } = require('../services/systemSettings');
+      await hydrateEnvFromDb();
+    } catch (e) {
+      console.warn('[DB] إعدادات النظام:', e.message);
+    }
     return getDb();
   }
 

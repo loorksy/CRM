@@ -116,13 +116,13 @@ async function getPreferredProvider() {
  * (describe_data ثم query_data)، ونموذج بلا هذا الدعم سيهلوس أرقاماً بدل
  * أن يستعلم عنها — وهو أسوأ من عدم الرد إطلاقاً في نظام محاسبي.
  */
-const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+function openRouterBaseUrl() { return process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'; }
 
 /** عميل OpenRouter. الترويستان الاختياريتان لنسبة الاستخدام في لوحة OpenRouter. */
 function openRouterClient(apiKey) {
   return new OpenAI({
     apiKey,
-    baseURL: OPENROUTER_BASE_URL,
+    baseURL: openRouterBaseUrl(),
     defaultHeaders: {
       'HTTP-Referer': process.env.PUBLIC_BASE_URL || 'https://lorkerp.local',
       'X-Title': 'LorkERP',
@@ -148,7 +148,7 @@ function supportsTools(model) {
  * @returns {Promise<Array<{id, name, contextLength, supportsTools}>>}
  */
 async function fetchOpenRouterModels(apiKey) {
-  const res = await fetch(`${OPENROUTER_BASE_URL}/models`, {
+  const res = await fetch(`${openRouterBaseUrl()}/models`, {
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
   });
 
@@ -369,5 +369,5 @@ module.exports = {
   // OpenRouter: مزوّد احتياطي بنماذج مجانية داعمة للأدوات
   fetchOpenRouterModels,
   openRouterClient,
-  OPENROUTER_BASE_URL,
+  get OPENROUTER_BASE_URL() { return openRouterBaseUrl(); },
 };

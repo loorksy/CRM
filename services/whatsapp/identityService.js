@@ -14,10 +14,10 @@ const crypto = require('crypto');
 const { getDb } = require('../../db/database');
 const { normalizeJid } = require('./evolutionClient');
 
-const OTP_TTL_MINUTES = parseInt(process.env.WHATSAPP_OTP_TTL_MINUTES || '10', 10);
-const OTP_MAX_ATTEMPTS = parseInt(process.env.WHATSAPP_OTP_MAX_ATTEMPTS || '5', 10);
-const BLOCK_MINUTES = parseInt(process.env.WHATSAPP_BLOCK_MINUTES || '60', 10);
-const SESSION_TTL_MINUTES = parseInt(process.env.WHATSAPP_SESSION_TTL_MINUTES || '720', 10);
+function otpTtlMinutes() { return parseInt(process.env.WHATSAPP_OTP_TTL_MINUTES || '10', 10); }
+function otpMaxAttempts() { return parseInt(process.env.WHATSAPP_OTP_MAX_ATTEMPTS || '5', 10); }
+function blockMinutes() { return parseInt(process.env.WHATSAPP_BLOCK_MINUTES || '60', 10); }
+function sessionTtlMinutes() { return parseInt(process.env.WHATSAPP_SESSION_TTL_MINUTES || '720', 10); }
 
 /** تجزئة الرمز بمفتاح الخادم — لا يُخزَّن الرمز نصاً صريحاً أبداً */
 function hashCode(code) {
@@ -239,7 +239,7 @@ async function issueOtp(identity) {
   await db.query(
     `INSERT INTO whatsapp_otp (identity_id, code_hash, expires_at, max_attempts)
      VALUES ($1, $2, CURRENT_TIMESTAMP + ($3 || ' minutes')::interval, $4)`,
-    [identity.id, hashCode(code), String(OTP_TTL_MINUTES), OTP_MAX_ATTEMPTS]
+    [identity.id, hashCode(code), String(otpTtlMinutes()), otpMaxAttempts()]
   );
 
   await logAccess({
@@ -247,7 +247,7 @@ async function issueOtp(identity) {
     action: 'otp_issued',
   });
 
-  return { ok: true, code, ttlMinutes: OTP_TTL_MINUTES };
+  return { ok: true, code, ttlMinutes: otpTtlMinutes() };
 }
 
 /**
@@ -318,12 +318,12 @@ async function blockTemporarily(identity) {
             failed_attempts = failed_attempts + 1,
             updated_at = CURRENT_TIMESTAMP
       WHERE id = $2`,
-    [String(BLOCK_MINUTES), identity.id]
+    [String(blockMinutes()), identity.id]
   );
   await db.query('UPDATE whatsapp_otp SET consumed_at = CURRENT_TIMESTAMP WHERE identity_id = $1 AND consumed_at IS NULL', [identity.id]);
   await logAccess({
     phoneJid: identity.phone_jid, identityId: identity.id, ownerUserId: identity.owner_user_id,
-    action: 'identity_temp_blocked', allowed: false, detail: `${BLOCK_MINUTES} دقيقة`,
+    action: 'identity_temp_blocked', allowed: false, detail: `${blockMinutes()} دقيقة`,
   });
 }
 
@@ -359,7 +359,7 @@ async function saveSession(phoneJid, { identityId, state, history }) {
        history_json = EXCLUDED.history_json,
        expires_at = EXCLUDED.expires_at,
        updated_at = CURRENT_TIMESTAMP`,
-    [jid, identityId || null, state || 'unverified', JSON.stringify(trimmed), String(SESSION_TTL_MINUTES)]
+    [jid, identityId || null, state || 'unverified', JSON.stringify(trimmed), String(sessionTtlMinutes())]
   );
 }
 
@@ -430,5 +430,5 @@ module.exports = {
   saveSession,
   clearSession,
   resolveScope,
-  OTP_TTL_MINUTES,
+  get OTP_TTL_MINUTES() { return otpTtlMinutes(); },
 };
