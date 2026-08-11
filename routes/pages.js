@@ -71,6 +71,7 @@ const pages = [
   { path: '/member-directory', page: 'member-directory', title: 'بيانات المستخدمين' },
   { path: '/member-adjustments', page: 'member-adjustments', title: 'إضافات وخصومات' },
   { path: '/whatsapp', page: 'whatsapp', title: 'وكيل واتساب' },
+  { path: '/whatsapp-app', page: 'whatsapp-app', title: 'تطبيق واتساب' },
 ];
 
 router.get('/member-directory/member/:memberUserId', requireAuth, (req, res) => {

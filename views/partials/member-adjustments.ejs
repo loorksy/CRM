@@ -1,263 +1,226 @@
-<div class="member-adjustments-page w-full max-w-6xl mx-auto min-w-0 px-3 pb-8 sm:px-6 lg:px-8" dir="rtl" data-tabs-container="member-adjustments">
-  <header class="mb-4 pt-1 sm:mb-5">
-    <div class="flex flex-wrap items-start gap-3">
-      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
-        <i class="fas fa-wallet text-lg" aria-hidden="true"></i>
-      </div>
-      <div class="min-w-0 flex-1">
-        <h1 class="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">إضافات وخصومات</h1>
-        <p class="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">نظام الإضافة والخصم على جدول Google (فردي وجماعي) بنفس منطق تطبيق الرواتب — مع تسجيل محاسبي اختياري في النظام.</p>
-      </div>
-    </div>
+<div class="member-adjustments-page w-full max-w-4xl mx-auto min-w-0 px-3 pb-6 sm:px-5" dir="rtl" data-tabs-container="member-adjustments">
+  <header class="mb-3 pt-1">
+    <h1 class="text-lg font-bold leading-tight text-slate-900 sm:text-xl">إضافات وخصومات</h1>
+    <p class="mt-0.5 text-xs text-slate-500">معالجة على جدول Google — جماعي أو فردي، مع تسجيل محاسبي اختياري.</p>
   </header>
 
-  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <!-- الواجهة الجديدة = المسار الأساسي -->
-    <div id="maPanelSheet">
-      <section class="px-4 py-5 sm:px-6 border-b border-slate-100 bg-slate-50/40">
-        <h2 class="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
-          <i class="fas fa-sliders-h text-sky-600"></i> إعدادات الربط والتحكم
-        </h2>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div class="sm:col-span-2">
-            <label for="maSsId" class="mb-1.5 block text-xs font-semibold text-slate-600">ملف جدول البيانات</label>
-            <select id="maSsId" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-              <option value="">جاري جلب الملفات…</option>
-            </select>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="maSheetName" class="mb-1.5 block text-xs font-semibold text-slate-600">الورقة المطلوبة</label>
-            <select id="maSheetName" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-              <option value="">يرجى اختيار الملف أولاً</option>
-            </select>
-          </div>
-          <div>
-            <label for="maIdCol" class="mb-1.5 block text-xs font-semibold text-slate-600">عمود ID</label>
-            <input type="text" id="maIdCol" value="C" maxlength="3" dir="ltr" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-center text-sm font-bold uppercase tracking-wider shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-          </div>
-          <div>
-            <label for="maSalaryCol" class="mb-1.5 block text-xs font-semibold text-slate-600">عمود الراتب</label>
-            <input type="text" id="maSalaryCol" value="L" maxlength="3" dir="ltr" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-center text-sm font-bold uppercase tracking-wider shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-          </div>
-          <div>
-            <label for="maStatusCol" class="mb-1.5 block text-xs font-semibold text-slate-600">عمود الحالة</label>
-            <input type="text" id="maStatusCol" value="O" maxlength="3" dir="ltr" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-center text-sm font-bold uppercase tracking-wider shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-          </div>
-        </div>
-      </section>
-
-      <div class="px-4 py-3 sm:px-6">
-        <nav class="flex gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="فردي أو جماعي">
-          <button type="button" data-ma-sheet-mode="single" class="ma-sheet-mode-btn flex-1 h-10 rounded-lg text-sm font-semibold text-indigo-700 bg-white shadow-sm ring-1 ring-slate-200/90">
-            <i class="fas fa-user ml-1"></i> معالجة فردية
-          </button>
-          <button type="button" data-ma-sheet-mode="bulk" class="ma-sheet-mode-btn flex-1 h-10 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">
-            <i class="fas fa-users ml-1"></i> معالجة جماعية
-          </button>
-        </nav>
-      </div>
-
-      <div id="maSheetSingle" class="px-4 pb-5 sm:px-6">
-        <div class="mb-3">
-          <label for="maSheetUserId" class="mb-1.5 block text-xs font-semibold text-slate-600">معرف المستخدم (ID)</label>
-          <input type="text" id="maSheetUserId" inputmode="numeric" placeholder="مثال: 123456" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-        </div>
-        <div class="mb-3">
-          <label for="maSheetType" class="mb-1.5 block text-xs font-semibold text-slate-600">نوع العملية</label>
-          <select id="maSheetType" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-            <option value="اضافة">إضافة مبلغ</option>
-            <option value="خصم">خصم مبلغ</option>
-            <option value="خصم كامل">خصم كامل</option>
+  <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div id="maPanelSheet" class="p-3 sm:p-4 space-y-3">
+      <!-- الجدول + الورقة بنفس الصف -->
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div class="min-w-0">
+          <label for="maSsId" class="mb-1 block text-[11px] font-semibold text-slate-600">الجدول</label>
+          <select id="maSsId" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <option value="">جاري جلب الملفات…</option>
           </select>
         </div>
-        <div class="mb-3">
-          <label for="maSheetAmount" class="mb-1.5 block text-xs font-semibold text-slate-600">قيمة المبلغ</label>
-          <input type="number" id="maSheetAmount" step="0.01" placeholder="أدخل القيمة المالية" dir="ltr" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold tabular-nums shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+        <div class="min-w-0">
+          <label for="maSheetName" class="mb-1 block text-[11px] font-semibold text-slate-600">الورقة</label>
+          <select id="maSheetName" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <option value="">اختر الجدول أولاً</option>
+          </select>
         </div>
-        <label class="mb-4 flex items-start gap-2 cursor-pointer select-none rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
-          <input type="checkbox" id="maAlsoErp" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
-          <span class="text-xs text-slate-700 leading-relaxed"><strong class="font-semibold text-slate-900">سجّل أيضاً في النظام المحاسبي</strong> — يحدّث الشيت أولاً ثم يُسجّل الخصم/الإضافة في النظام دون تعطيل أي مسار.</span>
+      </div>
+
+      <!-- أعمدة بنفس الصف — قوائم منسدلة (الافتراضي C / L / O) -->
+      <div class="grid grid-cols-3 gap-2">
+        <div class="min-w-0">
+          <label for="maIdCol" class="mb-1 block text-[11px] font-semibold text-slate-600">عمود ID</label>
+          <select id="maIdCol" dir="ltr" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-bold uppercase focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></select>
+        </div>
+        <div class="min-w-0">
+          <label for="maSalaryCol" class="mb-1 block text-[11px] font-semibold text-slate-600">عمود الراتب</label>
+          <select id="maSalaryCol" dir="ltr" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-bold uppercase focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></select>
+        </div>
+        <div class="min-w-0">
+          <label for="maStatusCol" class="mb-1 block text-[11px] font-semibold text-slate-600">عمود الحالة</label>
+          <select id="maStatusCol" dir="ltr" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-bold uppercase focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></select>
+        </div>
+      </div>
+
+      <nav class="flex gap-1 rounded-lg bg-slate-100 p-0.5" role="tablist" aria-label="فردي أو جماعي">
+        <button type="button" data-ma-sheet-mode="bulk" class="ma-sheet-mode-btn flex-1 h-9 rounded-md text-sm font-semibold text-indigo-700 bg-white shadow-sm ring-1 ring-slate-200/90">
+          <i class="fas fa-users ml-1"></i> جماعي
+        </button>
+        <button type="button" data-ma-sheet-mode="single" class="ma-sheet-mode-btn flex-1 h-9 rounded-md text-sm font-medium text-slate-600 hover:text-slate-900">
+          <i class="fas fa-user ml-1"></i> فردي
+        </button>
+      </nav>
+
+      <div id="maSheetBulk">
+        <label for="maBulkData" class="mb-1 block text-[11px] font-semibold text-slate-600">البيانات (رقم ← نوع ← مبلغ)</label>
+        <textarea id="maBulkData" rows="5" placeholder="12345&#9;خصم&#9;50" class="w-full resize-y rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 min-h-[6rem]" dir="ltr"></textarea>
+        <p class="mt-1 text-[10px] text-slate-500">للخصم الكامل: <span dir="ltr" class="font-mono">12345&#9;خصم كامل</span></p>
+        <button type="button" id="maSheetBulkBtn" class="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-800 px-4 text-sm font-bold text-white hover:bg-slate-900">
+          <i class="fas fa-play"></i> معالجة القائمة
+        </button>
+      </div>
+
+      <div id="maSheetSingle" class="hidden space-y-2">
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div class="min-w-0 sm:col-span-1">
+            <label for="maSheetUserId" class="mb-1 block text-[11px] font-semibold text-slate-600">المعرّف</label>
+            <input type="text" id="maSheetUserId" inputmode="numeric" placeholder="123456" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+          </div>
+          <div class="min-w-0">
+            <label for="maSheetType" class="mb-1 block text-[11px] font-semibold text-slate-600">النوع</label>
+            <select id="maSheetType" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+              <option value="اضافة">إضافة</option>
+              <option value="خصم">خصم</option>
+              <option value="خصم كامل">خصم كامل</option>
+            </select>
+          </div>
+          <div class="min-w-0">
+            <label for="maSheetAmount" class="mb-1 block text-[11px] font-semibold text-slate-600">المبلغ</label>
+            <input type="number" id="maSheetAmount" step="0.01" placeholder="0.00" dir="ltr" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+          </div>
+        </div>
+        <label class="flex items-start gap-2 cursor-pointer select-none rounded-lg border border-indigo-100 bg-indigo-50/40 px-2.5 py-2">
+          <input type="checkbox" id="maAlsoErp" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
+          <span class="text-[11px] text-slate-700 leading-snug"><strong class="font-semibold text-slate-900">سجّل أيضاً في النظام المحاسبي</strong></span>
         </label>
-        <button type="button" id="maSheetSingleBtn" class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.99]">
-          <i class="fas fa-paper-plane"></i> تنفيذ العملية الآن
+        <button type="button" id="maSheetSingleBtn" class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700">
+          <i class="fas fa-paper-plane"></i> تنفيذ
         </button>
-      </div>
-
-      <div id="maSheetBulk" class="hidden px-4 pb-5 sm:px-6">
-        <div class="mb-3">
-          <label for="maBulkData" class="mb-1.5 block text-xs font-semibold text-slate-600">قائمة البيانات المنسوخة</label>
-          <textarea id="maBulkData" rows="7" placeholder="الرقم ← النوع ← المبلغ (مفصولة بـ Tab أو مسافات)" class="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-relaxed shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 min-h-[8rem]" dir="ltr"></textarea>
-          <p class="mt-1 text-[11px] text-slate-500">مثال صف: <span dir="ltr" class="font-mono">12345&#9;خصم&#9;50</span> — وللخصم الكامل: <span dir="ltr" class="font-mono">12345&#9;خصم كامل</span></p>
-        </div>
-        <button type="button" id="maSheetBulkBtn" class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-slate-900 active:scale-[0.99]">
-          <i class="fas fa-play"></i> معالجة القائمة بالكامل
-        </button>
-      </div>
-
-      <div id="maLoader" class="hidden mx-4 mb-4 sm:mx-6 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm font-semibold text-sky-700">
-        <i class="fas fa-spinner fa-spin ml-2"></i> جاري المعالجة وتحديث جدول البيانات…
-      </div>
-
-      <div id="maSummaryArea" class="hidden px-4 pb-4 sm:px-6">
-        <div class="grid grid-cols-3 gap-2 mb-3">
-          <div class="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-center">
-            <div class="text-[11px] font-bold text-emerald-700 mb-1"><i class="fas fa-plus-circle ml-1"></i> إضافة</div>
-            <div id="maSumAdded" class="text-base font-bold text-emerald-800 tabular-nums">$0</div>
-          </div>
-          <div class="rounded-xl border border-sky-200 bg-sky-50/80 p-3 text-center">
-            <div class="text-[11px] font-bold text-sky-700 mb-1"><i class="fas fa-minus-circle ml-1"></i> خصم فعلي</div>
-            <div id="maSumDeducted" class="text-base font-bold text-sky-800 tabular-nums">$0</div>
-          </div>
-          <div class="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-center">
-            <div class="text-[11px] font-bold text-amber-700 mb-1"><i class="fas fa-clock ml-1"></i> المتبقي</div>
-            <div id="maSumDebt" class="text-base font-bold text-amber-800 tabular-nums">$0</div>
-          </div>
-        </div>
-        <div id="maDebtUsersContainer" class="hidden rounded-xl border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-xs text-amber-900">
-          <i class="fas fa-exclamation-triangle text-amber-600 ml-1"></i>
-          الديون مسجلة على الأرقام:
-          <span id="maDebtUsersList" class="font-semibold break-all"></span>
-        </div>
-      </div>
-
-      <div id="maResultsArea" class="hidden border-t border-slate-100">
-        <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 bg-slate-50/80">
-          <span class="text-xs font-bold text-slate-700"><i class="fas fa-clipboard-list text-sky-600 ml-1"></i> تقرير العمليات المفصل</span>
-          <button type="button" id="maCopyResultsBtn" class="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-50">
-            <i class="fas fa-copy"></i> نسخ النتائج مع الملخص
-          </button>
-        </div>
-        <div class="max-h-64 overflow-y-auto">
-          <table class="w-full text-center text-sm" id="maResultsTable">
-            <thead class="sticky top-0 bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
-              <tr>
-                <th class="px-3 py-3 font-bold">رقم المستخدم</th>
-                <th class="px-3 py-3 font-bold">الحالة</th>
-                <th class="px-3 py-3 font-bold">المبلغ</th>
-              </tr>
-            </thead>
-            <tbody id="maResultsBody" class="divide-y divide-slate-100"></tbody>
-          </table>
-        </div>
       </div>
     </div>
-
   </div>
 
-  <!-- المسار السابق محفوظ بالكامل هنا (غير معطّل) -->
-  <details id="maPanelErp" class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm group">
-    <summary class="cursor-pointer list-none px-4 py-4 sm:px-6 flex items-center justify-between gap-3 select-none hover:bg-slate-50/80 transition">
-      <span class="flex items-center gap-3 min-w-0">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-          <i class="fas fa-database"></i>
-        </span>
-        <span class="min-w-0">
-          <span class="block text-sm font-bold text-slate-800">التسجيل المحاسبي المتقدم (النظام السابق)</span>
-          <span class="block text-xs text-slate-500 mt-0.5">خصم / إضافة / مكافأة مع الدورة وربط Google القديم — متاح بالكامل عند الحاجة</span>
-        </span>
+  <!-- المسار السابق -->
+  <details id="maPanelErp" class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm group">
+    <summary class="cursor-pointer list-none px-3 py-3 sm:px-4 flex items-center justify-between gap-3 select-none hover:bg-slate-50/80 transition">
+      <span class="min-w-0">
+        <span class="block text-sm font-bold text-slate-800">التسجيل المحاسبي المتقدم</span>
+        <span class="block text-[11px] text-slate-500 mt-0.5">النظام السابق — متاح عند الحاجة</span>
       </span>
       <i class="fas fa-chevron-down text-slate-400 transition group-open:rotate-180"></i>
     </summary>
-    <div class="border-t border-slate-100">
-      <section class="px-4 py-5 sm:px-6 sm:py-6">
-        <h2 class="mb-4 flex items-center gap-2 text-sm font-bold text-slate-800">
-          <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">١</span>
-          بيانات العملية
-        </h2>
-        <div class="flex flex-col gap-4 sm:gap-5">
-          <div>
-            <label for="maMemberId" class="mb-1.5 block text-xs font-semibold text-slate-600">رقم المستخدم</label>
-            <div class="flex gap-2">
-              <input type="text" id="maMemberId" inputmode="numeric" autocomplete="off" placeholder="مثال: 12345"
-                class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm tabular-nums shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-              <button type="button" id="maPasteBtn"
-                class="h-11 shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.99]">لصق</button>
-            </div>
-          </div>
-
-          <div>
-            <span class="mb-1.5 block text-xs font-semibold text-slate-600" id="maKindLabel">نوع العملية</span>
-            <select id="maKind" class="sr-only" aria-labelledby="maKindLabel">
-              <option value="deduct">خصم</option>
-              <option value="add">إضافة</option>
-              <option value="reward">مكافأة</option>
-            </select>
-            <div id="maKindPills" class="grid grid-cols-3 gap-2" role="group" aria-label="نوع العملية">
-              <button type="button" data-ma-kind="deduct" class="ma-kind-btn flex min-h-[2.75rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-transparent bg-slate-100 px-2 py-2 text-center text-xs font-bold text-slate-600 transition hover:bg-slate-200/80 sm:text-sm">
-                <i class="fas fa-minus-circle text-sm text-red-500" aria-hidden="true"></i>
-                خصم
-              </button>
-              <button type="button" data-ma-kind="add" class="ma-kind-btn flex min-h-[2.75rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-transparent bg-slate-100 px-2 py-2 text-center text-xs font-bold text-slate-600 transition hover:bg-slate-200/80 sm:text-sm">
-                <i class="fas fa-plus-circle text-sm text-emerald-600" aria-hidden="true"></i>
-                إضافة
-              </button>
-              <button type="button" data-ma-kind="reward" class="ma-kind-btn flex min-h-[2.75rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-transparent bg-slate-100 px-2 py-2 text-center text-xs font-bold text-slate-600 transition hover:bg-slate-200/80 sm:text-sm">
-                <i class="fas fa-gift text-sm text-amber-600" aria-hidden="true"></i>
-                مكافأة
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label for="maAmount" class="mb-1.5 block text-xs font-semibold text-slate-600">المبلغ (USD)</label>
-            <input type="number" id="maAmount" min="0" step="0.01" placeholder="0.00" dir="ltr"
-              class="h-11 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 text-base font-semibold tabular-nums shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-          </div>
+    <div class="border-t border-slate-100 px-3 py-4 sm:px-4 space-y-4">
+      <div>
+        <label for="maMemberId" class="mb-1 block text-[11px] font-semibold text-slate-600">رقم المستخدم</label>
+        <div class="flex gap-2">
+          <input type="text" id="maMemberId" inputmode="numeric" autocomplete="off" placeholder="مثال: 12345"
+            class="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+          <button type="button" id="maPasteBtn" class="h-9 shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100">لصق</button>
         </div>
-      </section>
-
-      <section class="border-t border-slate-100 bg-slate-50/70 px-4 py-5 sm:px-6 sm:py-6">
-        <h2 class="mb-4 flex items-center gap-2 text-sm font-bold text-slate-800">
-          <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/80">٢</span>
-          الدورة المالية والربط مع Google
-        </h2>
-        <div class="flex flex-col gap-4">
-          <div>
-            <label for="maCycleId" class="mb-1.5 block text-xs font-semibold text-slate-600">دورة مالية <span class="font-normal text-slate-400">(مُستحسَن لتحديث Google)</span></label>
-            <select id="maCycleId"
-              class="h-11 w-full max-w-xl rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-              <option value="">— اختر الدورة —</option>
-            </select>
-          </div>
-
-          <div class="rounded-xl border border-slate-200/80 bg-white p-3 sm:p-4">
-            <label class="flex cursor-pointer items-start gap-3">
-              <input type="checkbox" id="maSyncSheet" class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
-              <span class="text-sm leading-relaxed text-slate-700">تحديث عمود الراتب في جدول <strong class="font-semibold text-slate-900">معلومات المستخدمين</strong> المرتبط بالدورة</span>
-            </label>
-            <div class="mt-4 grid max-w-md grid-cols-2 gap-3 sm:gap-4">
-              <div>
-                <label for="maUiUidCol" class="mb-1 block text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">عمود رقم المستخدم</label>
-                <input type="text" id="maUiUidCol" value="C" maxlength="3" dir="ltr"
-                  class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-2 text-center text-sm font-bold uppercase tabular-nums tracking-wider focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30">
-              </div>
-              <div>
-                <label for="maUiSalCol" class="mb-1 block text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">عمود الراتب</label>
-                <input type="text" id="maUiSalCol" value="L" maxlength="3" dir="ltr"
-                  class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-2 text-center text-sm font-bold uppercase tabular-nums tracking-wider focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30">
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="border-t border-slate-100 px-4 py-5 sm:px-6 sm:py-6">
-        <h2 class="mb-4 flex items-center gap-2 text-sm font-bold text-slate-800">
-          <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">٣</span>
-          ملاحظات وتأكيد
-        </h2>
-        <label for="maNotes" class="mb-1.5 block text-xs font-semibold text-slate-600">ملاحظات <span class="font-normal text-slate-400">(اختياري)</span></label>
-        <textarea id="maNotes" rows="3" placeholder="تفاصيل إضافية للسجل المحاسبي…"
-          class="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-relaxed shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 min-h-[5rem]"></textarea>
-
-        <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <button type="button" id="maSubmitBtn"
-            class="inline-flex h-12 min-w-[10rem] items-center justify-center rounded-xl bg-indigo-600 px-8 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.99] sm:min-w-[12rem]">
-            تسجيل العملية
+      </div>
+      <div>
+        <span class="mb-1 block text-[11px] font-semibold text-slate-600" id="maKindLabel">نوع العملية</span>
+        <select id="maKind" class="sr-only" aria-labelledby="maKindLabel">
+          <option value="deduct">خصم</option>
+          <option value="add">إضافة</option>
+          <option value="reward">مكافأة</option>
+        </select>
+        <div id="maKindPills" class="grid grid-cols-3 gap-1.5" role="group" aria-label="نوع العملية">
+          <button type="button" data-ma-kind="deduct" class="ma-kind-btn flex min-h-[2.25rem] items-center justify-center gap-1 rounded-lg border-2 border-transparent bg-slate-100 px-2 py-1.5 text-xs font-bold text-slate-600">
+            <i class="fas fa-minus-circle text-red-500"></i> خصم
           </button>
-          <p id="maMsg" class="min-h-[1.25rem] flex-1 text-center text-sm text-slate-500 sm:text-end" role="status" aria-live="polite"></p>
+          <button type="button" data-ma-kind="add" class="ma-kind-btn flex min-h-[2.25rem] items-center justify-center gap-1 rounded-lg border-2 border-transparent bg-slate-100 px-2 py-1.5 text-xs font-bold text-slate-600">
+            <i class="fas fa-plus-circle text-emerald-600"></i> إضافة
+          </button>
+          <button type="button" data-ma-kind="reward" class="ma-kind-btn flex min-h-[2.25rem] items-center justify-center gap-1 rounded-lg border-2 border-transparent bg-slate-100 px-2 py-1.5 text-xs font-bold text-slate-600">
+            <i class="fas fa-gift text-amber-600"></i> مكافأة
+          </button>
         </div>
-      </section>
+      </div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label for="maAmount" class="mb-1 block text-[11px] font-semibold text-slate-600">المبلغ (USD)</label>
+          <input type="number" id="maAmount" min="0" step="0.01" placeholder="0.00" dir="ltr"
+            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+        </div>
+        <div>
+          <label for="maCycleId" class="mb-1 block text-[11px] font-semibold text-slate-600">دورة مالية</label>
+          <select id="maCycleId" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <option value="">— اختر الدورة —</option>
+          </select>
+        </div>
+      </div>
+      <div class="rounded-lg border border-slate-200/80 bg-slate-50/60 p-2.5">
+        <label class="flex cursor-pointer items-start gap-2">
+          <input type="checkbox" id="maSyncSheet" class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
+          <span class="text-xs text-slate-700">تحديث عمود الراتب في جدول معلومات المستخدمين</span>
+        </label>
+        <div class="mt-2 grid grid-cols-2 gap-2 max-w-xs">
+          <div>
+            <label for="maUiUidCol" class="mb-0.5 block text-[10px] font-semibold text-slate-500">عمود المستخدم</label>
+            <input type="text" id="maUiUidCol" value="C" maxlength="3" dir="ltr" class="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-center text-sm font-bold uppercase">
+          </div>
+          <div>
+            <label for="maUiSalCol" class="mb-0.5 block text-[10px] font-semibold text-slate-500">عمود الراتب</label>
+            <input type="text" id="maUiSalCol" value="L" maxlength="3" dir="ltr" class="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-center text-sm font-bold uppercase">
+          </div>
+        </div>
+      </div>
+      <div>
+        <label for="maNotes" class="mb-1 block text-[11px] font-semibold text-slate-600">ملاحظات</label>
+        <textarea id="maNotes" rows="2" placeholder="اختياري…" class="w-full resize-y rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
+      </div>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <button type="button" id="maSubmitBtn" class="inline-flex h-10 min-w-[9rem] items-center justify-center rounded-lg bg-indigo-600 px-6 text-sm font-bold text-white hover:bg-indigo-700">تسجيل العملية</button>
+        <p id="maMsg" class="min-h-[1.25rem] flex-1 text-center text-sm text-slate-500 sm:text-end" role="status" aria-live="polite"></p>
+      </div>
     </div>
   </details>
+
+  <!-- نافذة المعالجة -->
+  <div id="maProcessModal" class="hidden fixed inset-0 z-[10050] items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="maProcessTitle">
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" data-ma-process-backdrop></div>
+    <div class="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xl">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+        <i class="fas fa-spinner fa-spin text-xl"></i>
+      </div>
+      <h2 id="maProcessTitle" class="text-base font-bold text-slate-900">جاري المعالجة…</h2>
+      <p class="mt-1 text-sm text-slate-500">يتم تحديث جدول البيانات، يرجى الانتظار.</p>
+    </div>
+  </div>
+
+  <!-- نافذة النتائج -->
+  <div id="maResultsModal" class="hidden fixed inset-0 z-[10050] items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="maResultsTitle">
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" data-ma-results-close></div>
+    <div class="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <h2 id="maResultsTitle" class="text-sm font-bold text-slate-900"><i class="fas fa-clipboard-list text-sky-600 ml-1"></i> نتائج المعالجة</h2>
+        <div class="flex items-center gap-2">
+          <button type="button" id="maCopyResultsBtn" class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-sky-700 hover:bg-sky-50">
+            <i class="fas fa-copy"></i> نسخ
+          </button>
+          <button type="button" data-ma-results-close class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="إغلاق">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div id="maSummaryArea" class="border-b border-slate-100 px-4 py-3">
+        <div class="grid grid-cols-3 gap-2">
+          <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 p-2 text-center">
+            <div class="text-[10px] font-bold text-emerald-700 mb-0.5">إضافة</div>
+            <div id="maSumAdded" class="text-sm font-bold text-emerald-800 tabular-nums">$0</div>
+          </div>
+          <div class="rounded-lg border border-sky-200 bg-sky-50/80 p-2 text-center">
+            <div class="text-[10px] font-bold text-sky-700 mb-0.5">خصم فعلي</div>
+            <div id="maSumDeducted" class="text-sm font-bold text-sky-800 tabular-nums">$0</div>
+          </div>
+          <div class="rounded-lg border border-amber-200 bg-amber-50/80 p-2 text-center">
+            <div class="text-[10px] font-bold text-amber-700 mb-0.5">المتبقي</div>
+            <div id="maSumDebt" class="text-sm font-bold text-amber-800 tabular-nums">$0</div>
+          </div>
+        </div>
+        <div id="maDebtUsersContainer" class="hidden mt-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2 text-[11px] text-amber-900">
+          الديون على: <span id="maDebtUsersList" class="font-semibold break-all"></span>
+        </div>
+      </div>
+      <div id="maResultsArea" class="min-h-0 flex-1 overflow-y-auto">
+        <table class="w-full text-center text-sm" id="maResultsTable">
+          <thead class="sticky top-0 bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-3 py-2.5 font-bold">رقم المستخدم</th>
+              <th class="px-3 py-2.5 font-bold">الحالة</th>
+              <th class="px-3 py-2.5 font-bold">المبلغ</th>
+            </tr>
+          </thead>
+          <tbody id="maResultsBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>

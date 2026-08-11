@@ -294,7 +294,7 @@ function lorkerpSyncSidebarNavDetails() {
   if (!mq.matches) return;
   var collapsed = document.body.classList.contains('sidebar-desktop-collapsed');
   var p = (document.body && document.body.getAttribute('data-page')) || '';
-  var g1 = ['sheet', 'payroll-google', 'search', 'sub-agencies', 'sub-agency-detail', 'member-directory', 'member-directory-detail', 'member-adjustments', 'admin-brokerage'];
+  var g1 = ['sheet', 'payroll-google', 'search', 'sub-agencies', 'sub-agency-detail', 'member-directory', 'member-directory-detail', 'member-adjustments', 'admin-brokerage', 'whatsapp', 'whatsapp-app'];
   var g3 = ['debts', 'debt-company', 'debt-fund', 'payables-overview', 'receivables-to-us', 'profit-sources', 'profit-source-detail', 'payment-due', 'financial-movements', 'expenses-page'];
   var d1 = document.getElementById('sidebarDetailsGroup1');
   var d3 = document.getElementById('sidebarDetailsGroup3');

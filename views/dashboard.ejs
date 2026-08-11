@@ -143,6 +143,8 @@
         <%- include('partials/member-adjustments') %>
       <% } else if (page === 'whatsapp') { %>
         <%- include('partials/whatsapp') %>
+      <% } else if (page === 'whatsapp-app') { %>
+        <%- include('partials/whatsapp-app') %>
       <% } %>
     </div>
   </main>
@@ -257,7 +259,7 @@
     <script src="/js/member-directory-detail.js"></script>
   <% } %>
   <% if (page === 'member-adjustments') { %>
-    <script src="/js/member-adjustments.js?v=20260328a"></script>
+    <script src="/js/member-adjustments.js?v=20260328b"></script>
   <% } %>
   <% if (page === 'whatsapp') { %>
     <script src="/js/whatsapp.js"></script>

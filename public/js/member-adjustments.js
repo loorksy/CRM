@@ -7,6 +7,7 @@
   const msg = document.getElementById('maMsg');
 
   let copyStats = { totalDebt: 0, totalDeducted: 0, totalNotFound: 0 };
+  var DEFAULT_COLS = { id: 'C', salary: 'L', status: 'O' };
 
   function setMaMessage(text, variant) {
     if (!msg) return;
@@ -17,7 +18,27 @@
     else msg.classList.add('text-slate-500');
   }
 
-  /** الواجهة الجديدة هي المسار الأساسي؛ النظام السابق داخل <details> ولا يحتاج تبويباً */
+  function colLetters() {
+    var out = [];
+    for (var i = 0; i < 26; i++) out.push(String.fromCharCode(65 + i));
+    return out;
+  }
+
+  function fillColSelect(el, selected) {
+    if (!el) return;
+    var letters = colLetters();
+    var sel = String(selected || '').toUpperCase() || letters[0];
+    el.innerHTML = letters.map(function (L) {
+      return '<option value="' + L + '"' + (L === sel ? ' selected' : '') + '>' + L + '</option>';
+    }).join('');
+    if (!el.value) el.value = sel;
+  }
+
+  function initColumnSelects() {
+    fillColSelect(document.getElementById('maIdCol'), DEFAULT_COLS.id);
+    fillColSelect(document.getElementById('maSalaryCol'), DEFAULT_COLS.salary);
+    fillColSelect(document.getElementById('maStatusCol'), DEFAULT_COLS.status);
+  }
 
   function initSheetModes() {
     var btns = document.querySelectorAll('.ma-sheet-mode-btn');
@@ -41,10 +62,10 @@
     }
     btns.forEach(function (b) {
       b.addEventListener('click', function () {
-        show(b.getAttribute('data-ma-sheet-mode') || 'single');
+        show(b.getAttribute('data-ma-sheet-mode') || 'bulk');
       });
     });
-    show('single');
+    show('bulk');
   }
 
   function initKindPills() {
@@ -136,7 +157,7 @@
     if (!ss || !sh) return;
     var id = ss.value;
     if (!id) {
-      sh.innerHTML = '<option value="">يرجى اختيار الملف أولاً</option>';
+      sh.innerHTML = '<option value="">اختر الجدول أولاً</option>';
       return;
     }
     sh.innerHTML = '<option value="">جاري جلب الأوراق…</option>';
@@ -144,11 +165,11 @@
       var res = await fetch('/api/sheet/spreadsheet-sheets?spreadsheetId=' + encodeURIComponent(id), { credentials: 'same-origin' });
       var data = await res.json();
       if (!data.success) {
-        sh.innerHTML = '<option value="">' + (data.message || 'فشل') + '</option>';
+        sh.innerHTML = '<option value="">' + escapeHtml(data.message || 'فشل') + '</option>';
         return;
       }
       sh.innerHTML = (data.sheets || []).map(function (s) {
-        return '<option value="' + (s.title || '') + '">' + (s.title || '') + '</option>';
+        return '<option value="' + escapeHtml(s.title || '') + '">' + escapeHtml(s.title || '') + '</option>';
       }).join('') || '<option value="">لا توجد أوراق</option>';
     } catch (_) {
       sh.innerHTML = '<option value="">خطأ</option>';
@@ -159,9 +180,9 @@
     return {
       spreadsheetId: (document.getElementById('maSsId') || {}).value || '',
       sheetName: (document.getElementById('maSheetName') || {}).value || '',
-      idCol: ((document.getElementById('maIdCol') || {}).value || 'C').trim() || 'C',
-      salaryCol: ((document.getElementById('maSalaryCol') || {}).value || 'L').trim() || 'L',
-      statusCol: ((document.getElementById('maStatusCol') || {}).value || 'O').trim() || 'O',
+      idCol: ((document.getElementById('maIdCol') || {}).value || DEFAULT_COLS.id).trim() || DEFAULT_COLS.id,
+      salaryCol: ((document.getElementById('maSalaryCol') || {}).value || DEFAULT_COLS.salary).trim() || DEFAULT_COLS.salary,
+      statusCol: ((document.getElementById('maStatusCol') || {}).value || DEFAULT_COLS.status).trim() || DEFAULT_COLS.status,
     };
   }
 
@@ -175,20 +196,39 @@
     return '$' + String(rounded).replace('.', ',');
   }
 
+  function setModalVisible(el, show) {
+    if (!el) return;
+    if (show) {
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+      document.body.classList.add('overflow-hidden');
+    } else {
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+      var proc = document.getElementById('maProcessModal');
+      var res = document.getElementById('maResultsModal');
+      var anyOpen = (proc && !proc.classList.contains('hidden')) || (res && !res.classList.contains('hidden'));
+      if (!anyOpen) document.body.classList.remove('overflow-hidden');
+    }
+  }
+
   function toggleLoader(show, btnId) {
-    var loader = document.getElementById('maLoader');
-    if (loader) loader.classList.toggle('hidden', !show);
+    setModalVisible(document.getElementById('maProcessModal'), !!show);
     var btn = document.getElementById(btnId);
     if (btn) btn.disabled = !!show;
   }
 
+  function openResultsModal() {
+    setModalVisible(document.getElementById('maResultsModal'), true);
+  }
+
+  function closeResultsModal() {
+    setModalVisible(document.getElementById('maResultsModal'), false);
+  }
+
   function renderResults(results, summary) {
-    var summaryArea = document.getElementById('maSummaryArea');
-    var resultsArea = document.getElementById('maResultsArea');
     var body = document.getElementById('maResultsBody');
     if (!body) return;
-    if (summaryArea) summaryArea.classList.remove('hidden');
-    if (resultsArea) resultsArea.classList.remove('hidden');
     body.innerHTML = '';
 
     copyStats = { totalDebt: 0, totalDeducted: 0, totalNotFound: 0 };
@@ -218,9 +258,9 @@
 
       body.innerHTML +=
         '<tr class="hover:bg-slate-50/80">' +
-        '<td class="px-3 py-3 text-slate-800 tabular-nums">' + (r.id || '') + '</td>' +
-        '<td class="px-3 py-3"><span class="inline-block rounded-full border px-2.5 py-1 text-[11px] font-bold ' + badge + '">' + st + '</span></td>' +
-        '<td class="px-3 py-3 font-bold text-slate-800 tabular-nums" data-raw="' + (r.amount || 0) + '">' + formatMoneyUI(r.amount) + '</td>' +
+        '<td class="px-3 py-2.5 text-slate-800 tabular-nums">' + escapeHtml(r.id || '') + '</td>' +
+        '<td class="px-3 py-2.5"><span class="inline-block rounded-full border px-2 py-0.5 text-[11px] font-bold ' + badge + '">' + escapeHtml(st) + '</span></td>' +
+        '<td class="px-3 py-2.5 font-bold text-slate-800 tabular-nums" data-raw="' + (r.amount || 0) + '">' + formatMoneyUI(r.amount) + '</td>' +
         '</tr>';
     });
 
@@ -241,6 +281,8 @@
         debtBox.classList.add('hidden');
       }
     }
+
+    openResultsModal();
   }
 
   async function runSheetSingle() {
@@ -260,7 +302,11 @@
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
-          ...conf,
+          spreadsheetId: conf.spreadsheetId,
+          sheetName: conf.sheetName,
+          idCol: conf.idCol,
+          salaryCol: conf.salaryCol,
+          statusCol: conf.statusCol,
           userId: userId,
           type: type,
           amount: amountVal,
@@ -295,7 +341,14 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ ...conf, bulkData: bulkData }),
+        body: JSON.stringify({
+          spreadsheetId: conf.spreadsheetId,
+          sheetName: conf.sheetName,
+          idCol: conf.idCol,
+          salaryCol: conf.salaryCol,
+          statusCol: conf.statusCol,
+          bulkData: bulkData,
+        }),
       });
       var data = await res.json();
       if (!data.success) alert(data.message || 'فشل');
@@ -329,7 +382,7 @@
     });
   }
 
-  // ─── تهيئة الصفحة (الواجهة الجديدة = الشيت أولاً) ───
+  try { initColumnSelects(); } catch (e) { console.error('initColumnSelects', e); }
   try { initSheetModes(); } catch (e) { console.error('initSheetModes', e); }
   try { initKindPills(); } catch (e) { console.error('initKindPills', e); }
   loadCycles();
@@ -344,6 +397,13 @@
   if (bulkBtn) bulkBtn.addEventListener('click', runSheetBulk);
   var copyBtn = document.getElementById('maCopyResultsBtn');
   if (copyBtn) copyBtn.addEventListener('click', copyTableToSheet);
+
+  document.querySelectorAll('[data-ma-results-close]').forEach(function (el) {
+    el.addEventListener('click', closeResultsModal);
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') closeResultsModal();
+  });
 
   var typeEl = document.getElementById('maSheetType');
   var amountEl = document.getElementById('maSheetAmount');
