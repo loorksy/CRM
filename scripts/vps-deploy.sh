@@ -69,6 +69,13 @@ exists = subprocess.run(
 if exists != "1":
     subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-c", f"CREATE DATABASE {name} OWNER {user}"], check=True)
 subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-c", f"GRANT ALL PRIVILEGES ON DATABASE {name} TO {user}"], check=True)
+# Needed so the app can create AGENT_DB_USER (WhatsApp agent RLS role)
+subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-c", f"ALTER ROLE {user} CREATEROLE"], check=True)
+subprocess.run(
+    ["psql", "-d", name, "-v", "ON_ERROR_STOP=1", "-c",
+     f"GRANT ALL ON SCHEMA public TO {user}; ALTER SCHEMA public OWNER TO {user};"],
+    check=True,
+)
 print("postgres role/db ready")
 PY
 
