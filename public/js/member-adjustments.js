@@ -97,22 +97,36 @@
     }
   }
 
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   async function loadSpreadsheets() {
     var ss = document.getElementById('maSsId');
     if (!ss) return;
+    ss.innerHTML = '<option value="">جاري جلب الملفات…</option>';
     try {
       var res = await fetch('/api/sheet/spreadsheets-list', { credentials: 'same-origin' });
-      var data = await res.json();
-      if (!data.success) {
-        ss.innerHTML = '<option value="">' + (data.message || 'فشل جلب الملفات — اربط Google من الإعدادات') + '</option>';
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok || !data.success) {
+        ss.innerHTML = '<option value="">' + escapeHtml(data.message || ('فشل جلب الملفات (' + res.status + ') — اربط Google من الإعدادات')) + '</option>';
+        return;
+      }
+      var files = data.spreadsheets || [];
+      if (!files.length) {
+        ss.innerHTML = '<option value="">لا توجد ملفات — تحقق من ربط Google</option>';
         return;
       }
       ss.innerHTML = '<option value="">— اختر جدول البيانات —</option>' +
-        (data.spreadsheets || []).map(function (f) {
-          return '<option value="' + f.id + '">' + (f.name || f.id) + '</option>';
+        files.map(function (f) {
+          return '<option value="' + escapeHtml(f.id) + '">' + escapeHtml(f.name || f.id) + '</option>';
         }).join('');
     } catch (e) {
-      ss.innerHTML = '<option value="">خطأ في التحميل</option>';
+      ss.innerHTML = '<option value="">خطأ في التحميل — أعد تحميل الصفحة</option>';
     }
   }
 
@@ -315,11 +329,10 @@
     });
   }
 
-  // ─── تبويب النظام الحالي ───
+  // ─── تهيئة الصفحة (الواجهة الجديدة = الشيت أولاً) ───
+  try { initSheetModes(); } catch (e) { console.error('initSheetModes', e); }
+  try { initKindPills(); } catch (e) { console.error('initKindPills', e); }
   loadCycles();
-  initKindPills();
-  initMainTabs();
-  initSheetModes();
   loadSpreadsheets();
 
   var ssEl = document.getElementById('maSsId');
