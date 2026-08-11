@@ -82,13 +82,22 @@ fi
 
 echo "==> Syncing application source to ${APP_DIR}"
 mkdir -p "${APP_DIR}"
+AUTHED_REPO_URL="$REPO_URL"
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  AUTHED_REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/loorksy/ERPSYSTEM-.git"
+fi
 if [[ -d "${APP_DIR}/.git" ]]; then
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    git -C "${APP_DIR}" remote set-url origin "${AUTHED_REPO_URL}"
+  fi
   git -C "${APP_DIR}" fetch --all --prune
   git -C "${APP_DIR}" checkout "${GIT_REF}"
   git -C "${APP_DIR}" pull --ff-only origin "${GIT_REF}" || git -C "${APP_DIR}" reset --hard "origin/${GIT_REF}"
+  # Never persist the token in the remote URL
+  git -C "${APP_DIR}" remote set-url origin "${REPO_URL}"
 else
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    git clone --branch "${GIT_REF}" "https://x-access-token:${GITHUB_TOKEN}@github.com/loorksy/ERPSYSTEM-.git" "${APP_DIR}"
+    git clone --branch "${GIT_REF}" "${AUTHED_REPO_URL}" "${APP_DIR}"
     git -C "${APP_DIR}" remote set-url origin "${REPO_URL}"
   else
     echo "APP_DIR has no git checkout and GITHUB_TOKEN is unset." >&2
