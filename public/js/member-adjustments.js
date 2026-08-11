@@ -17,34 +17,7 @@
     else msg.classList.add('text-slate-500');
   }
 
-  function initMainTabs() {
-    var btns = document.querySelectorAll('.ma-tab-btn');
-    var panels = document.querySelectorAll('.ma-panel');
-    if (!btns.length) return;
-    function show(id) {
-      panels.forEach(function (p) {
-        var on = p.getAttribute('data-ma-panel') === id;
-        p.classList.toggle('hidden', !on);
-      });
-      btns.forEach(function (b) {
-        var on = b.getAttribute('data-ma-tab') === id;
-        b.classList.toggle('text-indigo-700', on);
-        b.classList.toggle('bg-white', on);
-        b.classList.toggle('shadow-sm', on);
-        b.classList.toggle('ring-1', on);
-        b.classList.toggle('ring-slate-200/90', on);
-        b.classList.toggle('font-semibold', on);
-        b.classList.toggle('font-medium', !on);
-        b.classList.toggle('text-slate-600', !on);
-      });
-    }
-    btns.forEach(function (b) {
-      b.addEventListener('click', function () {
-        show(b.getAttribute('data-ma-tab') || 'sheet');
-      });
-    });
-    show('sheet');
-  }
+  /** الواجهة الجديدة هي المسار الأساسي؛ النظام السابق داخل <details> ولا يحتاج تبويباً */
 
   function initSheetModes() {
     var btns = document.querySelectorAll('.ma-sheet-mode-btn');
