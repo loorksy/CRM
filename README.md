@@ -98,20 +98,14 @@ LorkERP/
 
 ## النشر على VPS
 
+الدومين الافتراضي للإنتاج: `https://erp.lork.cloud`
+
+للتثبيت الكامل على Ubuntu (Node + PostgreSQL + nginx + SSL + PM2) راجع:
+[docs/نشر-على-VPS.md](docs/نشر-على-VPS.md)
+
 ```bash
-# تثبيت Node.js
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# استنساخ المشروع وتثبيت التبعيات
-git clone <repository-url>
-cd LorkERP
-cp .env.example .env
-npm install --production
-
-# تشغيل بـ PM2
-npm install -g pm2
-pm2 start server.js --name lorkerp
-pm2 save
-pm2 startup
+# على السيرفر بعد استنساخ المشروع
+bash scripts/vps-bootstrap.sh
+bash scripts/vps-deploy.sh
+certbot --nginx -d erp.lork.cloud --redirect
 ```
