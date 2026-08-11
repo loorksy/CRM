@@ -9,6 +9,7 @@ sessions/
 whatsapp-session/
 .wwebjs_auth/
 .wwebjs_cache/
+data/whatsapp-app/
 touch.tmp
 
 # مخرجات بناء Evolution وحالة جلسات واتساب

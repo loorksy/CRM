@@ -1,12 +1,10 @@
 {
-  "versionCode": 11,
-  "versionName": "3.3.3",
+  "versionCode": 12,
+  "versionName": "3.3.4",
   "force": false,
-  "apkUrl": "https://bot.lork.cloud/download/bulk-sender.apk",
+  "apkUrl": "https://erp.lork.cloud/download/bulk-sender.apk",
   "title": "يتوفر تحديث جديد",
   "changelog": [
-    "عند عدم فتح واتساب يظهر اختيار النسخ المتاحة",
-    "إذا كنت داخل واتساب أو واتساب المزدوج لن يظهر الاختيار",
-    "معدل الإرسال الافتراضي أصبح 100 رسالة في الدقيقة"
+    "الاتصال بخادم erp.lork.cloud"
   ]
 }

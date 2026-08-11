@@ -175,6 +175,10 @@ const reportsRoutes = require('./routes/reports');
 const memberDirectoryRoutes = require('./routes/member-directory');
 const memberAdjustmentsRoutes = require('./routes/member-adjustments');
 const whatsappRoutes = require('./routes/whatsapp');
+const whatsappAppLicensesRoutes = require('./routes/whatsapp-app-licenses');
+
+// تطبيقات Android (تراخيص + تنزيل APK) — بدون بوت واتساب Web
+app.use(whatsappAppLicensesRoutes);
 
 app.use('/', authRoutes);
 app.use('/dashboard', dashboardRoutes);
