@@ -13,6 +13,7 @@ data/whatsapp-app/
 touch.tmp
 
 android/.gradle/
+android/.kotlin/
 android/**/build/
 android/local.properties
 android/.idea/
