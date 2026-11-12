@@ -12,6 +12,12 @@ whatsapp-session/
 data/whatsapp-app/
 touch.tmp
 
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.idea/
+android/captures/
+
 # مخرجات بناء Evolution وحالة جلسات واتساب
 integrations/evolution-api/node_modules/
 integrations/evolution-api/dist/
