@@ -270,6 +270,7 @@ class AuditStore(private val dao: AppDao, private val sheets: SheetsRest) {
 
     fun rowsPreview(cycle: CycleEntity): List<String> {
         val snap = dao.latestSnapshot(cycle.id, cycle.accountEmail) ?: return emptyList()
+        if (snap.fingerprint != fingerprint(decodeSources(cycle.sourcesJson))) return emptyList()
         val audit = runPayrollAuditCore(
             decodeRows(snap.managementJson),
             decodeRows(snap.agentJson),
@@ -279,7 +280,7 @@ class AuditStore(private val dao: AppDao, private val sheets: SheetsRest) {
             cycle.agentColor,
             cycle.managementColor,
         )
-        return audit.results.take(80).map { row ->
+        return audit.results.map { row ->
             val salary = if (row.salaryValue is Number) row.salaryValue.toString() else row.salaryValue.toString()
             "${row.userId.ifBlank { "—" }} · ${row.statusLabel.ifBlank { row.type }} · $salary · ${row.title}"
         }

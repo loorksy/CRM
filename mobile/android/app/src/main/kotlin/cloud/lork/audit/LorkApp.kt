@@ -47,7 +47,18 @@ class LorkApp : Application() {
 
 class GoogleSession(private val app: LorkApp) {
     val state = MutableStateFlow(LinkState())
-    var launcher: ((PendingIntent) -> Unit)? = null
+    private var launcher: ((PendingIntent) -> Unit)? = null
+    private var waitingConsent: PendingIntent? = null
+
+    fun attachLauncher(callback: (PendingIntent) -> Unit) {
+        launcher = callback
+        waitingConsent?.let {
+            waitingConsent = null
+            callback(it)
+        }
+    }
+
+    fun detachLauncher() { launcher = null }
     private var attempt = 0
     private var pending = -1
 
@@ -70,16 +81,19 @@ class GoogleSession(private val app: LorkApp) {
 
     fun begin() {
         pending = ++attempt
+        val requestAttempt = pending
+        waitingConsent = null
         app.scope.launch {
             state.value = reduceLink(state.value, LinkEvent.ConsentShown(state.value.email))
             persist()
-            apply(app.auth.authorize())
+            apply(app.auth.authorize(), requestAttempt)
         }
     }
 
     fun completeFromConsent() {
         if (attempt != pending) return
-        app.scope.launch { apply(app.auth.authorize()) }
+        val requestAttempt = pending
+        app.scope.launch { apply(app.auth.authorize(), requestAttempt) }
     }
 
     fun cancelFromConsent() {
@@ -94,10 +108,13 @@ class GoogleSession(private val app: LorkApp) {
         persist()
     }
 
-    private suspend fun apply(step: AuthStep) {
-        if (attempt != pending) return
+    private suspend fun apply(step: AuthStep, requestAttempt: Int) {
+        if (requestAttempt != pending) return
         when (step) {
-            is AuthStep.NeedsConsent -> launcher?.invoke(step.pending)
+            is AuthStep.NeedsConsent -> {
+                val callback = launcher
+                if (callback == null) waitingConsent = step.pending else callback(step.pending)
+            }
             is AuthStep.Ready -> {
                 val previous = state.value.email
                 if (!previous.isNullOrBlank() && previous != step.email) {

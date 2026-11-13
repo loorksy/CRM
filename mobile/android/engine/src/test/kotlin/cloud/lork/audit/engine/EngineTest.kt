@@ -17,14 +17,24 @@ class PayrollParityTest {
     @Test
     fun auditMatchesOriginalEngine() {
         val cases = json.getJSONArray("cases")
+        val seeded = JSONArray(PayrollParityTest::class.java.getResource("/payroll-seeded-fixtures.json")!!.readText())
+        for (i in 0 until seeded.length()) cases.put(seeded.getJSONObject(i))
         for (i in 0 until cases.length()) {
             val item = cases.getJSONObject(i)
             val input = item.getJSONObject("input")
             val expected = item.getJSONObject("output")
+            val cols = input.optJSONObject("columns") ?: JSONObject()
             val out = runPayrollAuditCore(
                 managementRows = rows(input.getJSONArray("managementRows")),
                 agentRows = rows(input.getJSONArray("agentRows")),
                 userInfoRows = rows(input.getJSONArray("userInfoRows")),
+                columns = AuditColumns(
+                    userInfoUserIdCol = cols.optString("userInfoUserIdCol", "C"),
+                    userInfoTitleCol = cols.optString("userInfoTitleCol", "D"),
+                    cycleMgmtUserIdCol = cols.optString("cycleMgmtUserIdCol", "A"),
+                    cycleAgentUserIdCol = cols.optString("cycleAgentUserIdCol", "A"),
+                    cycleAgentSalaryCol = cols.optString("cycleAgentSalaryCol", "D"),
+                ),
                 discountRatePct = input.optDouble("discountRatePct", 0.0),
                 agentColor = if (input.has("agentColor")) input.getString("agentColor") else null,
                 managementColor = if (input.has("managementColor")) input.getString("managementColor") else null,
@@ -370,13 +380,38 @@ class SendBehaviorTest {
         val switched = nextSendAction(rememberChat(session, openChat()), item, openChat(supported = false, chatKey = "com.notes|x"))
         assertTrue((switched as SendAction.Halt).reason.contains("واتساب"))
         val noSend = nextSendAction(session, item, openChat(sendFound = false))
-        assertTrue((noSend as SendAction.Halt).reason.contains("زر الإرسال"))
+        assertTrue(noSend is SendAction.PrepareText)
+        val noSendAfterTyping = nextSendAction(session, listOf(item.single().copy(status = "TEXT_PREPARED")), openChat(entryText = "نص", sendFound = false))
+        assertTrue((noSendAfterTyping as SendAction.Halt).reason.contains("زر الإرسال"))
         val prepared = listOf(SendItem("m1", 0, "نص", "TEXT_PREPARED"))
         val press = nextSendAction(rememberChat(session, openChat(entryText = "نص")), prepared, openChat(entryText = "نص"))
         assertTrue(press is SendAction.PressSend)
         val advanced = afterPress(session.copy(chatKey = "com.whatsapp|علي"), prepared, "m1")
         assertEquals("DONE", advanced.first.state)
         assertEquals("SEND_PRESSED", advanced.second.single().status)
+    }
+
+    @Test
+    fun waitsForWhatsAppToOpenBeforePreparingTheFirstMessage() {
+        val session = SendSessionState("WAITING_CHAT", 0, 10, null)
+        val item = listOf(SendItem("m1", 0, "نص", "READY"))
+        val outside = openChat(supported = false).copy(entryFound = false, chatNameReadable = false)
+        assertEquals(null, rememberChat(session, outside).chatKey)
+        assertTrue(nextSendAction(session, item, outside) is SendAction.Wait)
+        val inside = openChat(sendFound = false)
+        val bound = rememberChat(session, inside)
+        assertEquals("com.whatsapp|علي", bound.chatKey)
+        assertTrue(nextSendAction(bound, item, inside) is SendAction.PrepareText)
+        assertTrue(nextSendAction(bound, item, outside) is SendAction.Halt)
+    }
+
+    @Test
+    fun chatChangeBetweenPreparingAndClickingStopsTheQueue() {
+        val session = SendSessionState("SENDING", 0, 10, "com.whatsapp|علي")
+        val prepared = listOf(SendItem("m1", 0, "نص", "TEXT_PREPARED"))
+        val action = nextSendAction(session, prepared, openChat(entryText = "نص", chatKey = "com.whatsapp|آخر"))
+        assertTrue(action is SendAction.Halt)
+        assertEquals("m1", (action as SendAction.Halt).uncertainItemId)
     }
 
     @Test

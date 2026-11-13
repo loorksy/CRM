@@ -84,7 +84,7 @@ fun restoreAfterRestart(session: SendSessionState, items: List<SendItem>): Pair<
 }
 
 fun rememberChat(session: SendSessionState, obs: ChatObservation): SendSessionState {
-    if (session.chatKey == null && !obs.chatKey.isNullOrEmpty()) return session.copy(chatKey = obs.chatKey)
+    if (session.chatKey == null && obs.supportedPackage && obs.entryFound && obs.chatNameReadable && !obs.chatKey.isNullOrEmpty()) return session.copy(chatKey = obs.chatKey)
     return session
 }
 
@@ -115,13 +115,18 @@ fun nextSendAction(session: SendSessionState, items: List<SendItem>, obs: ChatOb
     if (!obs.overlayGranted) {
         return SendAction.Halt("إذن الظهور فوق التطبيقات غير ممنوح.", "PAUSED", null)
     }
+    // As in the original sender, allow WhatsApp to open before binding a chat.
+    if (session.state == "WAITING_CHAT" && session.chatKey == null &&
+        (!obs.supportedPackage || !obs.entryFound || !obs.chatNameReadable)) {
+        return SendAction.Wait
+    }
     if (!obs.supportedPackage) {
         return SendAction.Halt("التطبيق الظاهر ليس واتساب. توقف الإرسال.", "PAUSED", uncertainIfPrepared(item))
     }
     if (!obs.entryFound) {
         return SendAction.Halt("تعذر العثور على حقل الكتابة في واتساب.", "PAUSED", uncertainIfPrepared(item))
     }
-    if (!obs.sendFound) {
+    if (item.status == "TEXT_PREPARED" && !obs.sendFound) {
         return SendAction.Halt("تعذر العثور على زر الإرسال.", "PAUSED", uncertainIfPrepared(item))
     }
     if (!obs.chatNameReadable || obs.chatKey.isNullOrEmpty()) {

@@ -21,6 +21,11 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+      - name: Verify fixtures against the original payroll engine
+        run: |
+          npm install --prefix "$RUNNER_TEMP/audit-parity" bcryptjs@2.4.3 --no-audit --no-fund
+          NODE_PATH="$RUNNER_TEMP/audit-parity/node_modules" node mobile/android/parity/generate-fixtures.js
+          git diff --exit-code -- mobile/android/engine/src/test/resources/
       - name: Test and build debug APK
         working-directory: mobile/android
         run: chmod +x gradlew && ./gradlew :engine:test :app:assembleDebug --no-daemon

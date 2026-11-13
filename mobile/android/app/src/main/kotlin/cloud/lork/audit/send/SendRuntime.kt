@@ -144,23 +144,29 @@ class AuditAccessibilityService : AccessibilityService() {
 
     private fun press(itemId: String, expected: String) {
         val db = dao()
-        db.updateItem(itemId, "EXECUTION_STARTED", "بدأ التنفيذ قبل الضغط")
+        val currentSession = sessionOf(db.session())
+        if (currentSession.state != "SENDING" && currentSession.state != "WAITING_CHAT") {
+            pressing = false
+            return
+        }
         val root = findChatRoot()
         val tree = root?.let { MemNode.link(snapshot(it)) }
         val entryText = WhatsAppMatch.findEntry(tree)?.text.orEmpty()
         val sendId = WhatsAppMatch.findSend(tree)?.viewId
-        root?.recycle()
-        if (entryText != expected || sendId.isNullOrBlank()) {
+        val name = WhatsAppMatch.chatName(tree)
+        val chatKey = name?.let { tree?.packageName.orEmpty() + "|" + it }
+        if (entryText != expected || sendId.isNullOrBlank() || chatKey == null || chatKey != currentSession.chatKey) {
+            root?.recycle()
             db.updateItem(itemId, "UNCERTAIN", "تغيّر الحقل قبل الضغط")
             saveSession(sessionOf(db.session()).copy(state = "PAUSED"))
             pressing = false
             return
         }
-        val fresh = findChatRoot()
-        val node = fresh?.let { nodeById(it, sendId) }
+        db.updateItem(itemId, "EXECUTION_STARTED", "بدأ التنفيذ قبل الضغط")
+        val node = root?.let { nodeById(it, sendId) }
         val clicked = node?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
         node?.recycle()
-        fresh?.recycle()
+        root?.recycle()
         pressing = false
         if (!clicked) {
             db.updateItem(itemId, "UNCERTAIN", "لم يؤكد النظام الضغط على زر الإرسال")

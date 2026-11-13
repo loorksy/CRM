@@ -23,12 +23,20 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(newBase.createConfigurationContext(config))
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val app = application as LorkApp
-        app.session.launcher = { pending ->
+    override fun onStart() {
+        super.onStart()
+        (application as LorkApp).session.attachLauncher { pending ->
             consent.launch(IntentSenderRequest.Builder(pending).build())
         }
+    }
+
+    override fun onStop() {
+        (application as LorkApp).session.detachLauncher()
+        super.onStop()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
         setContent { AppRoot() }
     }
 }

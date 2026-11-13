@@ -4,7 +4,6 @@ import java.security.MessageDigest
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 
 /** مطابقة `normalizeForNumber` في services/payrollSearchService.js */
 fun normalizeForNumber(value: Any?): String {
@@ -22,48 +21,15 @@ fun normalizeForNumber(value: Any?): String {
     return out.replace(Regex("[,،\u066C\\s]"), "")
 }
 
+private val jsFloatPrefix = Regex("^[+-]?(?:Infinity|(?:[0-9]+\\.?[0-9]*|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?)")
+
 /** parseFloat في جافاسكربت: يقرأ أطول بادئة رقمية، و«123abc» تصبح 123. */
 fun jsParseFloat(raw: String): Double {
-    val s = raw.trim()
-    if (s.isEmpty()) return Double.NaN
-    var i = 0
-    var sign = 1.0
-    if (s[i] == '+' || s[i] == '-') {
-        if (s[i] == '-') sign = -1.0
-        i++
-    }
-    val start = i
-    var sawDigit = false
-    var sawDot = false
-    while (i < s.length) {
-        val c = s[i]
-        if (c.isDigit()) {
-            sawDigit = true
-            i++
-        } else if (c == '.' && !sawDot) {
-            sawDot = true
-            i++
-        } else {
-            break
-        }
-    }
-    if (!sawDigit) return Double.NaN
-    var num = s.substring(start, i).toDouble() * sign
-    if (i < s.length && (s[i] == 'e' || s[i] == 'E')) {
-        var j = i + 1
-        var expSign = 1
-        if (j < s.length && (s[j] == '+' || s[j] == '-')) {
-            if (s[j] == '-') expSign = -1
-            j++
-        }
-        val expStart = j
-        while (j < s.length && s[j].isDigit()) j++
-        if (j > expStart) {
-            val exp = s.substring(expStart, j).toInt() * expSign
-            num *= 10.0.pow(exp.toDouble())
-        }
-    }
-    return num
+    // Parse the entire exponent together: multiplying by pow(10) changes rounding
+    // and overflows even when JavaScript parseFloat returns a finite value.
+    val prefix = jsFloatPrefix
+        .find(raw.trim())?.value ?: return Double.NaN
+    return prefix.toDoubleOrNull() ?: Double.NaN
 }
 
 fun jsMathRound(x: Double): Double {
@@ -216,8 +182,8 @@ fun runPayrollAuditCore(
         if (id.isNotEmpty()) mgmtByUserId[id] = row to (mgmtHeader + idx)
     }
 
-    val agentColorVal = agentColor ?: "#3b82f6"
-    val mgmtColorVal = managementColor ?: "#10b981"
+    val agentColorVal = agentColor?.takeIf { it.isNotEmpty() } ?: "#3b82f6"
+    val mgmtColorVal = managementColor?.takeIf { it.isNotEmpty() } ?: "#10b981"
     val results = mutableListOf<AuditResultRow>()
     val byTitle = linkedMapOf<String, MutableList<ColoredTarget>>()
 

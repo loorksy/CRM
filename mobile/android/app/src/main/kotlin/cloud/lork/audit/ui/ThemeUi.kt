@@ -151,11 +151,11 @@ private fun NavItem(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun AuditHome(model: HomeViewModel, email: String?, phase: LinkPhase, context: Context) {
-    val ready = model.snapshotLine().startsWith("النسخة")
+    val ready = model.hasCurrentSnapshot()
     val advice = auditReadiness(model.link.value, ready, context.isOnline())
     Header("تدقيق لورك", "التدقيق", onSettings = { model.screen = Screen.Settings })
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("بياناتك جاهزة على الهاتف", color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(if (ready) "بياناتك جاهزة على الهاتف" else "نزّل بيانات الدورة لبدء التدقيق", color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
         StatusPill(phase == LinkPhase.DATA_READY || phase == LinkPhase.SOURCES_READY || email != null, if (email != null) "متصل" else "غير مرتبط")
     }
     SoftCard {
@@ -181,7 +181,7 @@ private fun AuditHome(model: HomeViewModel, email: String?, phase: LinkPhase, co
     val management = model.rows.count { it.contains("ادارة") || it.contains("إدارة") }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Stat("المستخدمون", if (total == 0) "0" else total.toString(), Modifier.weight(1f))
-        Stat("تمت المراجعة", (total - agent - management).coerceAtLeast(0).toString(), Modifier.weight(1f))
+        Stat("غير موجود", (total - agent - management).coerceAtLeast(0).toString(), Modifier.weight(1f))
         Stat("للمراجعة", (agent + management).toString(), Modifier.weight(1f))
     }
     SoftCard {
@@ -241,6 +241,7 @@ private fun ReviewPage(model: HomeViewModel) {
     if (visible.isEmpty()) {
         Text("لا توجد صفوف في هذا التصنيف.", color = Muted)
     }
+    if (visible.size > 40) Text("عرض أول 40 نتيجة من ${visible.size}؛ الاعتماد يشمل جميع النتائج.", color = Muted)
     visible.take(40).forEach { line ->
         val parts = line.split(" · ")
         SoftCard {
@@ -279,7 +280,7 @@ private fun SendHome(model: HomeViewModel, context: Context) {
     Text("رسالة في الدقيقة", color = Muted, fontSize = 12.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(10, 60, 300, 1000).forEach { speed ->
-            FilterPill(speed.toString(), model.mpm == speed) { model.mpm = speed }
+            FilterPill(speed.toString(), model.mpm == speed) { model.changeSendRate(speed) }
         }
     }
     PermitRow("إمكانية الوصول", accessOn) {

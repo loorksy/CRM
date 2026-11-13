@@ -132,6 +132,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var sendState by mutableStateOf("IDLE")
 
     fun reload() {
+        refreshSend()
         val email = link.value.email ?: return
         val current = graph.store.ensureCycle(email)
         cycle = current
@@ -148,13 +149,21 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         colAgent = columns.cycleAgentUserIdCol
         colAgentSalary = columns.cycleAgentSalaryCol
         rows = graph.store.rowsPreview(current)
-        refreshSend()
+    }
+
+    fun hasCurrentSnapshot(): Boolean = cycle?.let { hasSnapshot(it) } == true
+
+    fun changeSendRate(value: Int) {
+        mpm = value.coerceIn(1, 1000)
+        val dao = graph.db.dao()
+        dao.session()?.let { dao.saveSession(it.copy(mpm = mpm)) }
     }
 
     fun snapshotLine(): String {
         val current = cycle ?: return "لا توجد دورة محفوظة."
         val snap = graph.db.dao().latestSnapshot(current.id, current.accountEmail)
             ?: return "لا توجد نسخة محلية لهذه الدورة."
+        if (!hasSnapshot(current)) return "تغيّرت المصادر. نزّل بيانات الدورة مجدداً."
         val whenText = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale("ar")).format(Date(snap.createdAt))
         return "النسخة المحلية: $whenText · ${snap.rowCount} صفاً في معلومات المستخدمين."
     }
@@ -246,6 +255,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val columns = AuditColumns(colUser, colTitle, colSalary, colStatus, colMgmt, colAgent, colAgentSalary)
         graph.store.saveSources(current, sources, columns, rate, agentColor, managementColor)
         cycle = graph.db.dao().cycle(current.id)
+        planId = null
+        showReview = false
+        rows = cycle?.let { graph.store.rowsPreview(it) }.orEmpty()
         graph.session.note(if (sources.complete) LinkEvent.SourcesReady else LinkEvent.SourcesPartial)
         message = if (sources.complete) "حُفظ الربط. الخطوة التالية تنزيل بيانات الدورة." else "حُفظ ما اكتمل، وما زال أحد المصادر ناقصاً."
     }
@@ -366,7 +378,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         dao.insertItems(messages.mapIndexed { index, body -> SendItemEntity("m$index", index, body, "READY", "جاهزة") })
         dao.saveSession(
             cloud.lork.audit.db.SendSessionEntity(
-                state = "SENDING",
+                state = "WAITING_CHAT",
                 idx = 0,
                 mpm = mpm.coerceIn(1, 1000),
                 chatKey = null,
@@ -400,7 +412,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             message = "توجد رسالة غير مؤكدة. راجعها قبل الاستئناف حتى لا تُعاد تلقائياً."
             return
         }
-        dao.saveSession(session.copy(state = "SENDING"))
+        dao.saveSession(session.copy(state = "SENDING", mpm = mpm.coerceIn(1, 1000)))
         AuditAccessibilityService.instance?.startLoop()
         refreshSend()
     }
@@ -481,7 +493,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun hasSnapshot(current: CycleEntity): Boolean =
-        graph.db.dao().latestSnapshot(current.id, current.accountEmail) != null
+        graph.db.dao().latestSnapshot(current.id, current.accountEmail)?.let {
+            it.complete && it.fingerprint == cloud.lork.audit.data.fingerprint(decodeSources(current.sourcesJson))
+        } == true
 
     private fun trimNumber(value: Double): String =
         if (value == kotlin.math.floor(value)) value.toLong().toString() else value.toString()
