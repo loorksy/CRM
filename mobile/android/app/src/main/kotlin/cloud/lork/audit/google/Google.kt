@@ -285,10 +285,11 @@ class SheetsRest(private val token: () -> String) : SheetGateway {
         try {
             http.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
-                if (response.code == 401) throw SheetAccessException("401", "انتهت صلاحية التفويض. أعد الربط.")
-                if (response.code == 403) throw SheetAccessException("403", "لا توجد صلاحية على هذا الملف أو هذه العملية.")
-                if (response.code == 404) throw SheetAccessException("404", "الملف أو الورقة غير متاحة.")
-                if (!response.isSuccessful) throw SheetAccessException(response.code.toString(), "رفضت Google الطلب (${response.code}).")
+                if (!response.isSuccessful) {
+                    val service = if (response.request.url.host == "www.googleapis.com" &&
+                        response.request.url.encodedPath.startsWith("/drive/")) "Google Drive" else "Google Sheets"
+                    throw sheetAccessFailure(response.code, text, service)
+                }
                 if (text.isBlank()) return JSONObject()
                 return JSONObject(text)
             }
@@ -317,4 +318,42 @@ class SheetsRest(private val token: () -> String) : SheetGateway {
         fun ch(name: String) = (color.optDouble(name, 0.0) * 255).roundToInt().coerceIn(0, 255)
         return "#%02x%02x%02x".format(ch("red"), ch("green"), ch("blue"))
     }
+}
+
+/**
+ * Classify only structured Google reasons. Raw response messages may contain
+ * account/project information or credentials and must never be displayed.
+ */
+internal fun sheetAccessFailure(status: Int, body: String, serviceLabel: String = "Google Sheets"): SheetAccessException {
+    val service = if (serviceLabel == "Google Drive") "Google Drive" else "Google Sheets"
+    val reasons = mutableSetOf<String>()
+    runCatching {
+        val error = JSONObject(body).optJSONObject("error") ?: return@runCatching
+        for (key in listOf("details", "errors")) {
+            val entries = error.optJSONArray(key) ?: continue
+            for (index in 0 until entries.length()) {
+                val reason = entries.optJSONObject(index)?.opt("reason") as? String ?: continue
+                reasons += reason.replace("_", "").replace("-", "").lowercase()
+            }
+        }
+    }
+    if (status == 401) return SheetAccessException("401", "انتهت صلاحية تفويض Google. أعد ربط الحساب ثم حاول مجدداً.")
+    if (status == 404) return SheetAccessException("404", "الملف أو الورقة غير متاحة. تحقّق من الرابط والحساب وصلاحية المشاركة.")
+    if (status == 403) {
+        if (reasons.any { it in setOf("servicedisabled", "accessnotconfigured") }) {
+            return SheetAccessException("403:SERVICE_DISABLED",
+                "خدمة $service غير مفعّلة لهذا التطبيق. فعّل $service API في إعدادات Google Cloud ثم أعد المحاولة.")
+        }
+        if (reasons.any { it in setOf("accesstokenscopeinsufficient", "insufficientpermissions", "insufficientscope") }) {
+            return SheetAccessException("403:INSUFFICIENT_SCOPE",
+                "صلاحيات Google الممنوحة لا تكفي للوصول إلى $service. أعد ربط الحساب ووافق على الصلاحيات المطلوبة.")
+        }
+        if (reasons.any { it in setOf("ratelimitexceeded", "userratelimitexceeded", "quotaexceeded", "resourceexhausted") }) {
+            return SheetAccessException("403:RATE_LIMIT", "تم تجاوز حد طلبات $service. انتظر قليلاً ثم أعد المحاولة.")
+        }
+        return SheetAccessException("403", "لا توجد صلاحية للوصول إلى هذا الملف أو هذه العملية. تحقّق من الحساب ومشاركة الملف.")
+    }
+    if (status == 429) return SheetAccessException("429", "طلبات كثيرة إلى $service. انتظر قليلاً ثم أعد المحاولة.")
+    if (status in 500..599) return SheetAccessException(status.toString(), "تعذرت استجابة $service مؤقتاً. أعد المحاولة لاحقاً.")
+    return SheetAccessException(status.toString(), "رفضت $service الطلب ($status). تحقّق من الرابط ثم أعد المحاولة.")
 }

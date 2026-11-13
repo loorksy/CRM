@@ -63,12 +63,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cloud.lork.audit.data.Sources
+import cloud.lork.audit.data.withSelection
 import cloud.lork.audit.data.decodeColumns
 import cloud.lork.audit.data.decodeSources
 import cloud.lork.audit.db.CycleEntity
 import cloud.lork.audit.db.SendItemEntity
 import cloud.lork.audit.engine.AuditColumns
 import cloud.lork.audit.engine.DriveFile
+import cloud.lork.audit.engine.SourcePicker
+import cloud.lork.audit.engine.SourcePickerContext
+import cloud.lork.audit.engine.SourcePickerPage
+import cloud.lork.audit.engine.SheetAccessException
 import cloud.lork.audit.engine.LinkEvent
 import cloud.lork.audit.engine.LinkPhase
 import cloud.lork.audit.engine.ParseMode
@@ -132,10 +137,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var colAgentSalary by mutableStateOf("D")
     var files by mutableStateOf<List<DriveFile>>(emptyList())
     var fileMessage by mutableStateOf("")
-    var fileQuery by mutableStateOf("")
-    var sheetTitles by mutableStateOf<List<String>>(emptyList())
-    var selectedFile by mutableStateOf("")
-    var selectedFileId by mutableStateOf("")
+    private val sourcePicker = SourcePicker()
+    private var sourceChoiceGeneration = 0L
+    var sourcePickerState by mutableStateOf(sourcePicker.state)
+        private set
     var role by mutableStateOf("إدارة")
     var pasted by mutableStateOf("")
     var columnHint by mutableStateOf("")
@@ -214,6 +219,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resetCycleView() {
+        sourceChoiceGeneration++
         files = emptyList()
         sources = Sources()
         message = ""
@@ -227,9 +233,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         manualTargets = emptyList()
         manualTarget = ""
         manualNewTarget = ""
-        selectedFileId = ""
-        selectedFile = ""
-        sheetTitles = emptyList()
+        sourcePicker.close()
+        sourcePickerState = sourcePicker.state
         auditApplied = false
         auditOfflinePreview = false
     }
@@ -463,84 +468,119 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    fun loadFiles(context: Context) {
-        if (link.value.phase == LinkPhase.NONE || link.value.phase == LinkPhase.CANCELED || link.value.phase == LinkPhase.AUTH_FAILED || link.value.phase == LinkPhase.WAITING_CONSENT) {
-            fileMessage = "الربط لم يكتمل بعد. أعد الربط قبل عرض الملفات."
-            return
-        }
+    fun openSourcePicker(sourceRole: String, context: Context) {
+        if (busy) return
+        val current = cycle ?: run { message = "اختر دورة أولاً."; return }
+        if (current.accountEmail != link.value.email) return
+        role = sourceRole
+        fileMessage = ""
+        pasted = ""
+        sourcePicker.open(SourcePickerContext(current.accountEmail, current.id, sourceRole), files)
+        sourcePickerState = sourcePicker.state
+        if (files.isEmpty()) refreshPickerFiles(context)
+    }
+
+    fun closeSourcePicker() {
+        sourcePicker.close()
+        sourcePickerState = sourcePicker.state
+    }
+
+    fun pickerQuery(value: String) {
+        sourcePicker.setQuery(value)
+        sourcePickerState = sourcePicker.state
+    }
+
+    fun pickerBack() {
+        sourcePicker.showFiles()
+        sourcePickerState = sourcePicker.state
+    }
+
+    fun refreshPickerFiles(context: Context) {
+        if (!sourcePicker.state.isOpen) return
+        val request = sourcePicker.requestFiles()
+        sourcePickerState = sourcePicker.state
         if (!context.isOnline()) {
-            fileMessage = "عرض ملفات Drive يحتاج اتصالاً."
+            sourcePicker.failed(request, "network", "عرض جداول Google يحتاج اتصالاً بالإنترنت.")
+            sourcePickerState = sourcePicker.state
             return
         }
-        if (busy) return
-        busy = true
         viewModelScope.launch(Dispatchers.IO) {
-            val result = runCatching { graph.sheets.listAllSpreadsheets() }.getOrElse {
-                withContext(Dispatchers.Main) {
-                    busy = false
-                    fileMessage = "تعذر قراءة قائمة الملفات."
-                }
-                return@launch
-            }
+            val result = runCatching { graph.sheets.listAllSpreadsheets() }
             withContext(Dispatchers.Main) {
-                busy = false
-                if (result.errorCode != null) {
-                    files = emptyList()
-                    fileMessage = result.message
-                } else {
-                    files = result.files
-                    fileMessage = result.message
+                result.onSuccess { listing ->
+                    if (sourcePicker.filesLoaded(request, listing) && listing.errorCode == null) files = listing.files
+                }.onFailure {
+                    sourcePicker.failed(request, (it as? SheetAccessException)?.code ?: "network",
+                        it.message ?: "تعذر تحميل قائمة الملفات. أعد المحاولة.")
                 }
+                sourcePickerState = sourcePicker.state
             }
         }
     }
 
-    fun openFile(id: String, name: String) {
-        if (busy) return
-        busy = true
-        selectedFileId = id
-        selectedFile = "$name · $id"
+    fun openPickerFile(file: DriveFile, context: Context) {
+        if (!sourcePicker.state.isOpen) return
+        val request = sourcePicker.openFile(file)
+        sourcePickerState = sourcePicker.state
+        if (!context.isOnline()) {
+            sourcePicker.failed(request, "network", "قراءة أوراق الملف تحتاج اتصالاً بالإنترنت.")
+            sourcePickerState = sourcePicker.state
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            val titles = runCatching { graph.sheets.listSheets(id) }.getOrElse { emptyList() }
+            val result = runCatching { graph.sheets.listSheets(file.id) }
             withContext(Dispatchers.Main) {
-                busy = false
-                sheetTitles = titles
-                if (titles.isEmpty()) {
-                    fileMessage = "تعذر قراءة أوراق هذا الملف أو أنه بلا أوراق."
+                result.onSuccess { sourcePicker.sheetsLoaded(request, it) }.onFailure {
+                    sourcePicker.failed(request, (it as? SheetAccessException)?.code ?: "network",
+                        it.message ?: "تعذر قراءة أوراق هذا الملف. أعد المحاولة أو اختر ملفاً آخر.")
                 }
-
+                sourcePickerState = sourcePicker.state
             }
         }
     }
 
-    fun changeSourceRole(value: String) {
-        if (busy) return
-        role = value
-        selectedFileId = ""
-        selectedFile = ""
-        sheetTitles = emptyList()
+    fun retrySourcePicker(context: Context) {
+        val file = sourcePicker.state.selectedFile
+        if (sourcePicker.state.page == SourcePickerPage.SHEETS && file != null) openPickerFile(file, context)
+        else refreshPickerFiles(context)
+    }
+
+    fun reauthorizeSourcePicker() {
+        closeSourcePicker()
+        if (link.value.phase != LinkPhase.WAITING_CONSENT) graph.session.begin()
+    }
+
+    fun choosePickerSheet(title: String) {
+        val selection = sourcePicker.chooseSheet(title) ?: return
+        sourcePickerState = sourcePicker.state
+        val current = cycle ?: return
+        if (selection.context.accountEmail != link.value.email || selection.context.cycleId != current.id ||
+            selection.context.accountEmail != current.accountEmail) return
+        // Save only the chosen source. Other edited settings still use the explicit Save button.
+        val saved = graph.db.dao().cycle(current.id) ?: return
+        val persisted = decodeSources(saved.sourcesJson).withSelection(selection)
+        graph.store.saveSources(saved, persisted, decodeColumns(saved.columnsJson), saved.discountRate,
+            saved.agentColor, saved.managementColor)
+        cycle = graph.db.dao().cycle(saved.id)
+        sources = sources.withSelection(selection)
+        planId = null
+        showReview = false
+        rows = cycle?.let { graph.store.rowsPreview(it) }.orEmpty()
         columnHint = ""
-    }
-
-    fun chooseSheet(title: String) {
-        val id = selectedFileId
-        if (id.isBlank()) return
-        sources = when (role) {
-            "وكيل" -> sources.copy(agentSs = id, agentSheet = title)
-            "مستخدمون" -> sources.copy(userSs = id, userSheet = title)
-            else -> sources.copy(mgmtSs = id, mgmtSheet = title)
-        }
-        message = "اختيرت ورقة «$title» لدور $role. احفظ الربط بعد اختيار الأدوار الثلاثة."
-        if (role == "مستخدمون") {
-            busy = true
+        message = "تم ربط ${selection.context.role} بالملف «${selection.file.name.ifBlank { selection.file.id }}» / الورقة «$title»."
+        val choiceGeneration = ++sourceChoiceGeneration
+        if (selection.context.role == "مستخدمون") {
+            val originalColumns = listOf(colUser, colTitle, colSalary, colStatus)
             viewModelScope.launch(Dispatchers.IO) {
-                val header = runCatching { graph.sheets.read(id, title).firstOrNull() }.getOrNull()
+                val header = runCatching { graph.sheets.read(selection.file.id, title).firstOrNull() }.getOrNull()
                 withContext(Dispatchers.Main) {
-                    busy = false
-                    if (role != "مستخدمون" || selectedFileId != id || sources.userSheet != title) return@withContext
-                    if (header != null) {
+                    val active = cycle
+                    if (choiceGeneration != sourceChoiceGeneration || active?.id != selection.context.cycleId || active.accountEmail != selection.context.accountEmail ||
+                        sources.userSs != selection.file.id || sources.userSheet != title) return@withContext
+                    if (header != null && originalColumns == listOf(colUser, colTitle, colSalary, colStatus)) {
                         val guess = suggestColumns(header)
-                        columnHint = if (guess.ambiguous) "عناوين الأعمدة غير حاسمة؛ راجع أحرفها يدوياً." else "اقتراح الأعمدة من ورقة «$title» المحددة."
+                        columnHint = if (guess.ambiguous) "راجع أحرف الأعمدة يدوياً؛ عناوين الورقة غير حاسمة." else
+                            "اقتراح الأعمدة من الورقة المحددة؛ احفظ الإعدادات بعد مراجعتها."
                         if (!guess.ambiguous) {
                             guess.userId?.let { colUser = it }
                             guess.title?.let { colTitle = it }
@@ -553,14 +593,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun applyPastedId() {
+    fun applyPastedId(context: Context) {
         val id = parseSpreadsheetId(pasted)
-        if (id == null) {
-            message = "الرابط أو المعرّف غير مفهوم."
-            return
-        }
-        selectedFile = "ملف ملصوق · $id"
-        openFile(id, "ملف ملصوق")
+        if (id == null) { fileMessage = "الرابط أو معرّف الملف غير مفهوم."; return }
+        if (!sourcePicker.state.isOpen) openSourcePicker(role, context)
+        if (sourcePicker.state.isOpen) openPickerFile(DriveFile(id, "ملف من الرابط"), context)
     }
 
     fun showSendBubble(context: Context) {

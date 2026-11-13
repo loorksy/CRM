@@ -42,6 +42,9 @@ data class Sources(
     val agentSheet: String = "",
     val userSs: String = "",
     val userSheet: String = "",
+    val mgmtFileName: String = "",
+    val agentFileName: String = "",
+    val userFileName: String = "",
 ) {
     val complete: Boolean
         get() = listOf(mgmtSs, mgmtSheet, agentSs, agentSheet, userSs, userSheet).all { it.isNotBlank() }
@@ -374,6 +377,13 @@ class AuditStore(private val dao: AppDao, private val sheets: SheetsRest) {
 fun fingerprint(sources: Sources): String =
     listOf(sources.mgmtSs, sources.mgmtSheet, sources.agentSs, sources.agentSheet, sources.userSs, sources.userSheet).joinToString("|")
 
+fun Sources.withSelection(selection: cloud.lork.audit.engine.SourceSelection): Sources = when (selection.context.role) {
+    "إدارة" -> copy(mgmtSs = selection.file.id, mgmtSheet = selection.sheetTitle, mgmtFileName = selection.file.name)
+    "وكيل" -> copy(agentSs = selection.file.id, agentSheet = selection.sheetTitle, agentFileName = selection.file.name)
+    "مستخدمون" -> copy(userSs = selection.file.id, userSheet = selection.sheetTitle, userFileName = selection.file.name)
+    else -> error("دور مصدر غير معروف")
+}
+
 fun encodeSources(sources: Sources): String = JSONObject()
     .put("mgmtSs", sources.mgmtSs)
     .put("mgmtSheet", sources.mgmtSheet)
@@ -381,6 +391,9 @@ fun encodeSources(sources: Sources): String = JSONObject()
     .put("agentSheet", sources.agentSheet)
     .put("userSs", sources.userSs)
     .put("userSheet", sources.userSheet)
+    .put("mgmtFileName", sources.mgmtFileName)
+    .put("agentFileName", sources.agentFileName)
+    .put("userFileName", sources.userFileName)
     .toString()
 
 fun decodeSources(json: String): Sources {
@@ -393,6 +406,9 @@ fun decodeSources(json: String): Sources {
         o.optString("agentSheet"),
         o.optString("userSs"),
         o.optString("userSheet"),
+        o.optString("mgmtFileName"),
+        o.optString("agentFileName"),
+        o.optString("userFileName"),
     )
 }
 

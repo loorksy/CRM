@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -37,6 +40,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -48,6 +54,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +75,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import cloud.lork.audit.engine.LinkPhase
+import cloud.lork.audit.engine.SourcePickerPage
 import cloud.lork.audit.engine.ParseMode
 import cloud.lork.audit.engine.Readiness
 import cloud.lork.audit.engine.auditReadiness
@@ -117,6 +126,7 @@ fun AppRoot(model: HomeViewModel = viewModel()) {
                     }
                 }
             }
+            if (model.sourcePickerState.isOpen) SourcePickerDialog(model, context)
         }
     }
 }
@@ -355,19 +365,14 @@ private fun LinkHome(model: HomeViewModel, context: Context) {
         if (model.message.isNotBlank()) Text(model.message, color = Ink)
         return
     }
-    SourceCard("الإدارة", "جدول الإدارة", model.sources.mgmtSheet, model.role == "إدارة") { model.changeSourceRole("إدارة") }
-    SourceCard("الوكيل", "جدول الوكيل", model.sources.agentSheet, model.role == "وكيل") { model.changeSourceRole("وكيل") }
-    SourceCard("معلومات المستخدمين", "قاعدة المستخدمين", model.sources.userSheet, model.role == "مستخدمون") { model.changeSourceRole("مستخدمون") }
-    SearchField(model.pasted, "لصق رابط ملف أو معرّفه") { model.pasted = it }
-    OutlineButton("استخدام رابط ملف", Modifier.fillMaxWidth()) { model.applyPastedId() }
-    OutlineButton(if (model.busy) "جارٍ التحميل" else "عرض الجداول", Modifier.fillMaxWidth(), !model.busy) { model.loadFiles(context) }
-    if (model.fileMessage.isNotBlank()) Text(model.fileMessage, color = Ink, fontSize = 13.sp)
-    SearchField(model.fileQuery, "بحث في أسماء الملفات") { model.fileQuery = it }
-    model.files.filter { it.name.contains(model.fileQuery, ignoreCase = true) }.take(20).forEach { file ->
-        SelectLine(file.name.ifBlank { file.id }) { model.openFile(file.id, file.name) }
-    }
-    if (model.selectedFile.isNotBlank()) Text(model.selectedFile, color = Muted, fontSize = 12.sp)
-    model.sheetTitles.forEach { title -> SelectLine(title) { model.chooseSheet(title) } }
+    Text("اضغط على الدور، ثم اختر الملف والورقة من نافذة الاختيار.", color = Muted, fontSize = 13.sp)
+    SourceCard("الإدارة", "اختيار جدول الإدارة", model.sources.mgmtSheet, model.sources.mgmtFileName,
+        model.role == "إدارة") { model.openSourcePicker("إدارة", context) }
+    SourceCard("الوكيل", "اختيار جدول الوكيل", model.sources.agentSheet, model.sources.agentFileName,
+        model.role == "وكيل") { model.openSourcePicker("وكيل", context) }
+    SourceCard("معلومات المستخدمين", "اختيار جدول معلومات المستخدمين", model.sources.userSheet, model.sources.userFileName,
+        model.role == "مستخدمون") { model.openSourcePicker("مستخدمون", context) }
+    OutlineButton("اختيار ملف لدور ${model.role}", Modifier.fillMaxWidth(), !model.busy) { model.openSourcePicker(model.role, context) }
     if (model.columnHint.isNotBlank()) Text(model.columnHint, color = Amber, fontSize = 13.sp)
     SelectLine(if (model.columnsOpen) "إخفاء إعدادات الأعمدة والخصم" else "إعدادات الأعمدة والخصم") {
         model.columnsOpen = !model.columnsOpen
@@ -394,6 +399,88 @@ private fun LinkHome(model: HomeViewModel, context: Context) {
     OutlineButton("تصدير النسخة المحلية", Modifier.fillMaxWidth()) { model.export(context) }
     Text(model.diagnostic(context), color = Muted, fontSize = 12.sp)
     OutlineButton("نسخ التشخيص", Modifier.fillMaxWidth()) { model.copyDiagnostic(context) }
+}
+
+@Composable
+private fun SourcePickerDialog(model: HomeViewModel, context: Context) {
+    val state = model.sourcePickerState
+    var showLinkInput by remember(state.context) { mutableStateOf(false) }
+    val sourceRole = when (state.context?.role) { "إدارة" -> "الإدارة"; "وكيل" -> "الوكيل"; else -> "معلومات المستخدمين" }
+    Dialog(
+        onDismissRequest = { if (state.page == SourcePickerPage.SHEETS) model.pickerBack() else model.closeSourcePicker() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(22.dp), color = Color.White,
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("اختيار ملف $sourceRole", color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text(if (state.page == SourcePickerPage.FILES) "1 / 2 — اختر ملف Google" else "2 / 2 — اختر الورقة داخل الملف", color = Muted, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { model.closeSourcePicker() }) { Text("إغلاق") }
+                }
+                if (state.page == SourcePickerPage.SHEETS) {
+                    TextButton(onClick = { model.pickerBack() }) { Text("العودة إلى الملفات") }
+                    Text(state.selectedFile?.name.orEmpty(), color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text("تُربط الورقة المختارة بدور $sourceRole فقط.", color = Muted, fontSize = 12.sp)
+                } else {
+                    SearchField(state.query, "بحث في جميع الملفات") { model.pickerQuery(it) }
+                    if (state.files.isNotEmpty()) Text("${state.filteredFiles.size} من ${state.files.size} جدولاً", color = Muted, fontSize = 12.sp)
+                    TextButton(onClick = { showLinkInput = !showLinkInput }) { Text(if (showLinkInput) "إخفاء الرابط" else "استخدام رابط ملف") }
+                    if (showLinkInput) {
+                        SearchField(model.pasted, "الصق رابط ملف أو معرّفه") { model.pasted = it }
+                        TextButton(onClick = { model.applyPastedId(context) }, enabled = !state.loading) { Text("عرض أوراق الرابط") }
+                        if (model.fileMessage.isNotBlank()) Text(model.fileMessage, color = Amber, fontSize = 12.sp)
+                    }
+                }
+                if (state.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(Modifier.size(24.dp), color = Teal, strokeWidth = 2.dp)
+                    Text(state.message, color = Muted, modifier = Modifier.weight(1f), fontSize = 13.sp)
+                }
+                if (state.errorMessage.isNotBlank()) {
+                    Banner(AmberBg, Amber, state.errorMessage)
+                    Text("رمز الخطأ: ${state.errorCode}", color = Muted, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { model.retrySourcePicker(context) }) { Text("إعادة المحاولة") }
+                        if (state.errorCode.startsWith("401") || state.errorCode.contains("INSUFFICIENT_SCOPE")) {
+                            TextButton(onClick = { model.reauthorizeSourcePicker() }) { Text("إعادة تفويض Google") }
+                        }
+                    }
+                }
+                LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.page == SourcePickerPage.FILES) {
+                        items(state.filteredFiles, key = { it.id }) { file ->
+                            PickerChoice(file.name.ifBlank { file.id }, "اختيار الملف وعرض أوراقه", !state.loading) {
+                                model.openPickerFile(file, context)
+                            }
+                        }
+                        if (!state.loading && state.filteredFiles.isEmpty() && state.errorMessage.isBlank()) item {
+                            Text(if (state.query.isBlank()) "لا توجد ملفات متاحة. يمكنك استخدام رابط ملف تملك صلاحية قراءته." else "لا توجد ملفات تطابق البحث.", color = Muted)
+                        }
+                    } else {
+                        items(state.sheetTitles, key = { it }) { title ->
+                            PickerChoice(title, "ربط هذه الورقة بدور $sourceRole", !state.loading) { model.choosePickerSheet(title) }
+                        }
+                    }
+                }
+                if (state.page == SourcePickerPage.FILES) {
+                    TextButton(onClick = { model.refreshPickerFiles(context) }, enabled = !state.loading) { Text("تحديث قائمة الملفات") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PickerChoice(title: String, subtitle: String, enabled: Boolean, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TealSoft)
+        .clickable(enabled = enabled, onClick = onClick).padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, color = Ink, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, color = Muted, fontSize = 12.sp)
+    }
 }
 
 @Composable
@@ -571,7 +658,7 @@ private fun PermitRow(label: String, ok: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SourceCard(title: String, hint: String, value: String, selected: Boolean, onClick: () -> Unit) {
+private fun SourceCard(title: String, hint: String, value: String, fileName: String, selected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -583,7 +670,8 @@ private fun SourceCard(title: String, hint: String, value: String, selected: Boo
     ) {
         Text(title, color = Ink, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        SelectLine(value.ifBlank { hint }, onClick)
+        if (fileName.isNotBlank()) Text(fileName, color = Ink, fontSize = 13.sp)
+        SelectLine(if (value.isBlank()) hint else "الورقة: $value", onClick)
     }
 }
 
