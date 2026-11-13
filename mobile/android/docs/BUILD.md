@@ -1,0 +1,36 @@
+# البناء من نسخة نظيفة
+
+المتطلبات: JDK 21، وAndroid SDK فيه المنصة 35 وأدوات البناء 35 أو 34. Gradle Wrapper موجود في هذا المجلد ويحمّل Gradle 8.11.1.
+
+```
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+echo "sdk.dir=$ANDROID_HOME" > local.properties
+chmod +x gradlew
+./gradlew :engine:test :app:assembleDebug --no-daemon
+```
+
+`local.properties` غير ملتزم لأنه يحتوي مسار الجهاز. الناتج:
+
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+فحص الحزمة والتوقيع:
+
+```
+aapt dump badging app/build/outputs/apk/debug/app-debug.apk | head
+apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk
+sha256sum app/build/outputs/apk/debug/app-debug.apk
+```
+
+التثبيت:
+
+```
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+`-r` يستبدل بناء debug السابق بنفس الشهادة ويبقي قاعدة البيانات. إن كانت الشهادة مختلفة يرفض أندرويد التثبيت. لا تحذف التطبيق قبل تصدير النسخة المحلية من الإعدادات إن كانت البيانات مهمة.
+
+لا يُبنى release لأن المستودع لا يحتوي مفتاح إصدار، ولم يُنشأ مفتاح جديد حتى لا يُظن أنه يحدّث التثبيت القديم.
+
+سير GitHub Actions في `.github/workflows/android-audit.yml` يبني APK debug ويرفعه كأثر قابل للتنزيل. شهادة ذلك الأثر تختلف عن شهادة هذا الجهاز، ويجب قراءة SHA-1 من الأثر نفسه قبل إنشاء عميل OAuth.

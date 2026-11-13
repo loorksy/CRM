@@ -1,0 +1,1038 @@
+{
+  "cases": [
+    {
+      "name": "راتب واحد بعد خصم",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "1001",
+            "علي"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ],
+          [
+            "1001",
+            "علي",
+            "",
+            "100"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "1001",
+            "الرياض",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 10,
+        "agentColor": "#8b5cf6",
+        "managementColor": "#facc15"
+      },
+      "output": {
+        "summary": {
+          "total": 1,
+          "agent": 1,
+          "management": 0,
+          "notFound": 0
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "1001",
+            "title": "الرياض",
+            "type": "سحب وكالة",
+            "salaryValue": 90,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 1,
+            "agentSheetRowIndices": [
+              1
+            ]
+          }
+        ],
+        "byTitle": {
+          "الرياض": [
+            {
+              "type": "سحب وكالة",
+              "color": "#8b5cf6",
+              "userId": "1001"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "راتبان",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "2002",
+            "هند"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ],
+          [
+            "2002",
+            "هند",
+            "",
+            "40"
+          ],
+          [
+            "2002",
+            "هند",
+            "",
+            "10"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "2002",
+            "جدة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 0,
+        "agentColor": "#8b5cf6",
+        "managementColor": "#facc15"
+      },
+      "output": {
+        "summary": {
+          "total": 1,
+          "agent": 1,
+          "management": 0,
+          "notFound": 0
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "2002",
+            "title": "جدة",
+            "type": "سحب وكالة - راتبيين",
+            "salaryValue": 50,
+            "statusLabel": "سحب وكيل راتبين",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 1,
+            "agentSheetRowIndices": [
+              1,
+              2
+            ]
+          }
+        ],
+        "byTitle": {
+          "جدة": [
+            {
+              "type": "سحب وكالة - راتبيين",
+              "color": "#8b5cf6",
+              "userId": "2002"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "سحب إدارة فقط",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "3003",
+            "سامي"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "3003",
+            "مكة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 5,
+        "agentColor": "#8b5cf6",
+        "managementColor": "#facc15"
+      },
+      "output": {
+        "summary": {
+          "total": 1,
+          "agent": 0,
+          "management": 1,
+          "notFound": 0
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "3003",
+            "title": "مكة",
+            "type": "سحب إدارة",
+            "salaryValue": 0,
+            "statusLabel": "سحب ادارة",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 1,
+            "agentSheetRowIndices": []
+          }
+        ],
+        "byTitle": {
+          "مكة": [
+            {
+              "type": "سحب إدارة",
+              "color": "#facc15",
+              "userId": "3003"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "قيم فارغة وغير صالحة وصفر وسالب",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "4004",
+            "أ"
+          ],
+          [
+            "4005",
+            "ب"
+          ],
+          [
+            "4006",
+            "ج"
+          ],
+          [
+            "4007",
+            "د"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ],
+          [
+            "4004",
+            "أ",
+            "",
+            ""
+          ],
+          [
+            "4005",
+            "ب",
+            "",
+            "abc"
+          ],
+          [
+            "4006",
+            "ج",
+            "",
+            "0"
+          ],
+          [
+            "4007",
+            "د",
+            "",
+            "-20"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "4004",
+            "أ",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          [
+            "",
+            "",
+            "4005",
+            "ب",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          [
+            "",
+            "",
+            "4006",
+            "ج",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          [
+            "",
+            "",
+            "4007",
+            "د",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 0
+      },
+      "output": {
+        "summary": {
+          "total": 4,
+          "agent": 4,
+          "management": 0,
+          "notFound": 0
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "4004",
+            "title": "أ",
+            "type": "سحب وكالة",
+            "salaryValue": 0,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 1,
+            "agentSheetRowIndices": [
+              1
+            ]
+          },
+          {
+            "userId": "4005",
+            "title": "ب",
+            "type": "سحب وكالة",
+            "salaryValue": 0,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 3,
+            "mgmtSheetRowIndex": 2,
+            "agentSheetRowIndices": [
+              2
+            ]
+          },
+          {
+            "userId": "4006",
+            "title": "ج",
+            "type": "سحب وكالة",
+            "salaryValue": 0,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 4,
+            "mgmtSheetRowIndex": 3,
+            "agentSheetRowIndices": [
+              3
+            ]
+          },
+          {
+            "userId": "4007",
+            "title": "د",
+            "type": "سحب وكالة",
+            "salaryValue": -20,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 5,
+            "mgmtSheetRowIndex": 4,
+            "agentSheetRowIndices": [
+              4
+            ]
+          }
+        ],
+        "byTitle": {
+          "أ": [
+            {
+              "type": "سحب وكالة",
+              "color": "#3b82f6",
+              "userId": "4004"
+            }
+          ],
+          "ب": [
+            {
+              "type": "سحب وكالة",
+              "color": "#3b82f6",
+              "userId": "4005"
+            }
+          ],
+          "ج": [
+            {
+              "type": "سحب وكالة",
+              "color": "#3b82f6",
+              "userId": "4006"
+            }
+          ],
+          "د": [
+            {
+              "type": "سحب وكالة",
+              "color": "#3b82f6",
+              "userId": "4007"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "معرفات لا تتطابق ووكيل بلا إدارة",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "5001",
+            "فقط إدارة"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ],
+          [
+            "5002",
+            "فقط وكيل",
+            "",
+            "15"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "5001",
+            "ورقة1",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          [
+            "",
+            "",
+            "5002",
+            "ورقة2",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          [
+            "",
+            "",
+            "5003",
+            "ورقة3",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 0
+      },
+      "output": {
+        "summary": {
+          "total": 3,
+          "agent": 0,
+          "management": 1,
+          "notFound": 2
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "5001",
+            "title": "ورقة1",
+            "type": "سحب إدارة",
+            "salaryValue": 0,
+            "statusLabel": "سحب ادارة",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 1,
+            "agentSheetRowIndices": []
+          },
+          {
+            "userId": "5002",
+            "title": "ورقة2",
+            "type": "غير موجود",
+            "salaryValue": "",
+            "statusLabel": "",
+            "rowIndex": 3,
+            "mgmtSheetRowIndex": null,
+            "agentSheetRowIndices": [
+              1
+            ]
+          },
+          {
+            "userId": "5003",
+            "title": "ورقة3",
+            "type": "غير موجود",
+            "salaryValue": "",
+            "statusLabel": "",
+            "rowIndex": 4,
+            "mgmtSheetRowIndex": null,
+            "agentSheetRowIndices": []
+          }
+        ],
+        "byTitle": {
+          "ورقة1": [
+            {
+              "type": "سحب إدارة",
+              "color": "#10b981",
+              "userId": "5001"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "تكرار الإدارة آخر صف والوكيل كل الصفوف وأصفار بادئة",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "007",
+            "قديم"
+          ],
+          [
+            "7",
+            "جديد"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ],
+          [
+            "007",
+            "ق",
+            "",
+            "5"
+          ],
+          [
+            "7",
+            "ج",
+            "",
+            "6"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "٠٠٧",
+            "العنوان",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 0
+      },
+      "output": {
+        "summary": {
+          "total": 1,
+          "agent": 1,
+          "management": 0,
+          "notFound": 0
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "7",
+            "title": "العنوان",
+            "type": "سحب وكالة - راتبيين",
+            "salaryValue": 11,
+            "statusLabel": "سحب وكيل راتبين",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 2,
+            "agentSheetRowIndices": [
+              1,
+              2
+            ]
+          }
+        ],
+        "byTitle": {
+          "العنوان": [
+            {
+              "type": "سحب وكالة - راتبيين",
+              "color": "#3b82f6",
+              "userId": "7"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "بدون صف عناوين",
+      "input": {
+        "managementRows": [
+          [
+            "8",
+            "نورة"
+          ]
+        ],
+        "agentRows": [
+          [
+            "8",
+            "نورة",
+            "",
+            "12.5"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "",
+            "",
+            "8",
+            "تبوك",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 0
+      },
+      "output": {
+        "summary": {
+          "total": 1,
+          "agent": 1,
+          "management": 0,
+          "notFound": 0
+        },
+        "dataStart": 0,
+        "results": [
+          {
+            "userId": "8",
+            "title": "تبوك",
+            "type": "سحب وكالة",
+            "salaryValue": 12.5,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 1,
+            "mgmtSheetRowIndex": 0,
+            "agentSheetRowIndices": [
+              0
+            ]
+          }
+        ],
+        "byTitle": {
+          "تبوك": [
+            {
+              "type": "سحب وكالة",
+              "color": "#3b82f6",
+              "userId": "8"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "خصم يجعل الناتج كسوراً",
+      "input": {
+        "managementRows": [
+          [
+            "رقم",
+            "اسم"
+          ],
+          [
+            "9",
+            "ل"
+          ]
+        ],
+        "agentRows": [
+          [
+            "رقم",
+            "اسم",
+            "",
+            "راتب"
+          ],
+          [
+            "9",
+            "ل",
+            "",
+            "10.25"
+          ]
+        ],
+        "userInfoRows": [
+          [
+            "ت",
+            "اسم",
+            "رقم",
+            "ورقة",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "راتب"
+          ],
+          [
+            "",
+            "",
+            "9",
+            "أبها",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        "discountRatePct": 2.5
+      },
+      "output": {
+        "summary": {
+          "total": 1,
+          "agent": 1,
+          "management": 0,
+          "notFound": 0
+        },
+        "dataStart": 1,
+        "results": [
+          {
+            "userId": "9",
+            "title": "أبها",
+            "type": "سحب وكالة",
+            "salaryValue": 9.99,
+            "statusLabel": "سحب وكيل",
+            "rowIndex": 2,
+            "mgmtSheetRowIndex": 1,
+            "agentSheetRowIndices": [
+              1
+            ]
+          }
+        ],
+        "byTitle": {
+          "أبها": [
+            {
+              "type": "سحب وكالة",
+              "color": "#3b82f6",
+              "userId": "9"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "duplicates": {
+    "duplicateIds": [
+      "11"
+    ],
+    "duplicateRowNumbers": [
+      3
+    ]
+  },
+  "manual": [
+    {
+      "input": {
+        "inMgmt": false,
+        "inAgent": false,
+        "mgmtColored": true,
+        "agentColored": true
+      },
+      "output": {
+        "status": "غير مدقق",
+        "source": null
+      }
+    },
+    {
+      "input": {
+        "inMgmt": true,
+        "inAgent": true,
+        "mgmtColored": false,
+        "agentColored": false
+      },
+      "output": {
+        "status": "غير مدقق",
+        "source": null
+      }
+    },
+    {
+      "input": {
+        "inMgmt": true,
+        "inAgent": false,
+        "mgmtColored": false,
+        "agentColored": true
+      },
+      "output": {
+        "status": "مدقق",
+        "source": "مدقق وكيل يدوي"
+      }
+    },
+    {
+      "input": {
+        "inMgmt": true,
+        "inAgent": false,
+        "mgmtColored": true,
+        "agentColored": false
+      },
+      "output": {
+        "status": "مدقق",
+        "source": "مدقق ادارة يدوي"
+      }
+    },
+    {
+      "input": {
+        "inMgmt": false,
+        "inAgent": true,
+        "mgmtColored": true,
+        "agentColored": true
+      },
+      "output": {
+        "status": "مدقق",
+        "source": "مدقق يدوي"
+      }
+    }
+  ],
+  "normalized": [
+    {
+      "in": "007",
+      "out": "7"
+    },
+    {
+      "in": "٠٠٧",
+      "out": "7"
+    },
+    {
+      "in": "7.9",
+      "out": "7"
+    },
+    {
+      "in": "abc",
+      "out": "abc"
+    },
+    {
+      "in": "",
+      "out": ""
+    },
+    {
+      "in": "  15 ",
+      "out": "15"
+    },
+    {
+      "in": "1e2",
+      "out": "100"
+    }
+  ],
+  "hash": {
+    "rows": [
+      [
+        "ت",
+        "اسم",
+        "رقم",
+        "ورقة",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "راتب"
+      ],
+      [
+        "",
+        "",
+        "1001",
+        "الرياض"
+      ]
+    ],
+    "hex": "01ac2ef6515409aac4891ab9505d3db7ad3d3db85bba83389d90bfc4cd0778da"
+  },
+  "salary": {
+    "before": 150,
+    "after": 135
+  }
+}

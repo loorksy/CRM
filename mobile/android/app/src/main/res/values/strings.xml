@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">تدقيق لورك</string>
+    <string name="a11y_desc">يكتب الرسالة في حقل محادثة واتساب المفتوحة ثم يضغط زر الإرسال. لا يكتب في تطبيقات أخرى. فعّله فقط أثناء الإرسال.</string>
+    <string name="bubble_channel">إرسال واتساب</string>
+    <string name="bubble_running">الإرسال يعمل من الفقاعة</string>
+</resources>
