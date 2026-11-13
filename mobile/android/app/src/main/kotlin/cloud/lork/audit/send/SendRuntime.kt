@@ -7,7 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -19,9 +21,10 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
+import android.util.TypedValue
 import androidx.core.app.NotificationCompat
 import cloud.lork.audit.LorkApp
 import cloud.lork.audit.MainActivity
@@ -270,6 +273,14 @@ class FloatingBubbleService : Service() {
     private var windowManager: WindowManager? = null
     private var bubble: View? = null
     private var panel: View? = null
+    private var counterView: TextView? = null
+    private val uiTick = object : Runnable {
+        override fun run() {
+            updateCounter()
+            handler.postDelayed(this, 1000)
+        }
+    }
+    private val handler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -278,6 +289,7 @@ class FloatingBubbleService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         startInForeground()
         showBubble()
+        handler.post(uiTick)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -298,6 +310,7 @@ class FloatingBubbleService : Service() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         panel?.let { runCatching { windowManager?.removeView(it) } }
         bubble?.let { runCatching { windowManager?.removeView(it) } }
         super.onDestroy()
@@ -327,54 +340,79 @@ class FloatingBubbleService : Service() {
     }
 
     private fun showBubble() {
-        val view = TextView(this).apply {
-            text = "إرسال"
-            setPadding(28, 28, 28, 28)
-            setBackgroundColor(0xFF4F46E5.toInt())
-            setTextColor(0xFFFFFFFF.toInt())
-            textSize = 14f
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
-        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        val circle = TextView(this).apply {
+            text = "➤"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(bubbleTeal)
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(64), dp(64))
+        }
+        val counter = TextView(this).apply {
+            text = "0 / 0"
+            gravity = Gravity.CENTER
+            setTextColor(bubbleTeal)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(Color.WHITE)
+            }
+        }
+        counterView = counter
+        column.addView(circle)
+        column.addView(counter)
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
         )
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 40
-        params.y = 240
-        view.setOnTouchListener(object : View.OnTouchListener {
+        params.x = dp(24)
+        params.y = dp(180)
+        column.setOnTouchListener(object : View.OnTouchListener {
             var dx = 0
             var dy = 0
+            var moved = false
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
+                        moved = false
                         dx = event.rawX.toInt() - params.x
                         dy = event.rawY.toInt() - params.y
                     }
                     MotionEvent.ACTION_MOVE -> {
+                        moved = true
                         params.x = event.rawX.toInt() - dx
                         params.y = event.rawY.toInt() - dy
-                        windowManager?.updateViewLayout(view, params)
+                        windowManager?.updateViewLayout(column, params)
                     }
-                    MotionEvent.ACTION_UP -> {
-                        val screen = resources.displayMetrics.heightPixels
-                        if (params.y > screen * 0.82) {
-                            pauseOrStop(stop = true)
-                            stopSelf()
-                        } else if (event.eventTime - event.downTime < 250) {
-                            togglePanel()
-                        }
-                    }
+                    MotionEvent.ACTION_UP -> if (!moved || event.eventTime - event.downTime < 220) togglePanel()
                 }
                 return true
             }
         })
-        bubble = view
-        windowManager?.addView(view, params)
+        bubble = column
+        windowManager?.addView(column, params)
+        updateCounter()
+    }
+
+    private fun updateCounter() {
+        val items = (application as LorkApp).db.dao().items()
+        val done = items.count { it.status == "SEND_PRESSED" }
+        counterView?.text = "$done / ${items.size}"
     }
 
     private fun togglePanel() {
@@ -384,47 +422,125 @@ class FloatingBubbleService : Service() {
             return
         }
         val dao = (application as LorkApp).db.dao()
+        val items = dao.items()
         val session = dao.session()
-        val box = LinearLayout(this).apply {
+        val uncertain = items.firstOrNull { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }
+        val done = items.count { it.status == "SEND_PRESSED" }
+        val total = items.size
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 24)
-            setBackgroundColor(0xF0FFFFFF.toInt())
             layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(24).toFloat()
+                setColor(Color.WHITE)
+            }
         }
-        box.addView(TextView(this).apply {
-            text = "الحالة: ${session?.state ?: "IDLE"} · ${session?.idx ?: 0}"
-            setTextColor(0xFF111827.toInt())
-        })
-        box.addView(Button(this).apply {
-            text = "إيقاف مؤقت"
-            setOnClickListener { pauseOrStop(false) }
-        })
-        box.addView(Button(this).apply {
-            text = "استئناف"
-            setOnClickListener {
-                val current = dao.session() ?: return@setOnClickListener
-                dao.saveSession(current.copy(state = "SENDING"))
-                AuditAccessibilityService.instance?.startLoop()
+        card.addView(label("تدقيق لورك", 16f, bubbleInk, true))
+        if (uncertain != null) {
+            card.addView(chip("الإرسال متوقف", 0xFFFFF6E8.toInt(), 0xFFB45309.toInt()))
+            card.addView(label("رسالة غير مؤكدة", 18f, bubbleInk, true))
+            card.addView(label("راجع المحادثة قبل إعادة المحاولة. لن تُعاد الرسالة تلقائياً.", 13f, bubbleMuted, false))
+            card.addView(label(uncertain.body.take(180), 14f, bubbleInk, false))
+            card.addView(actionButton("راجعت الرسالة", bubbleTeal, Color.WHITE) {
+                items.filter { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }.forEach {
+                    dao.updateItem(it.itemId, "READY", "أُعيد تجهيزها بعد مراجعة. لن تُرسل حتى تضغط استئناف.")
+                }
+                dao.session()?.let { dao.saveSession(it.copy(state = "PAUSED")) }
+                togglePanel()
+            })
+        } else {
+            val stateLabel = when (session?.state) {
+                "SENDING", "WAITING_CHAT" -> "جارٍ الإرسال"
+                "PAUSED" -> "الإرسال متوقف"
+                "DONE" -> "اكتمل الإرسال"
+                else -> "جاهز"
             }
-        })
-        box.addView(Button(this).apply {
-            text = "إيقاف"
-            setOnClickListener {
-                pauseOrStop(true)
-                stopSelf()
+            card.addView(label(stateLabel, 14f, bubbleTeal, true))
+            card.addView(label("$done / $total", 32f, bubbleInk, true))
+            card.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = total.coerceAtLeast(1)
+                progress = done
+                progressTintList = android.content.res.ColorStateList.valueOf(bubbleTeal)
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            })
+            card.addView(label("تم الضغط على الإرسال لا يؤكد وصول الرسالة.", 12f, bubbleMuted, false))
+            val meta = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            meta.addView(label("${session?.mpm ?: 10} رسالة / دقيقة", 13f, bubbleInk, false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            meta.addView(label("متبقية ${(total - done).coerceAtLeast(0)}", 13f, bubbleInk, false))
+            card.addView(meta)
+            if (session?.state == "PAUSED") {
+                card.addView(actionButton("استئناف", bubbleTeal, Color.WHITE) {
+                    val current = dao.session() ?: return@actionButton
+                    if (dao.items().any { it.status == "UNCERTAIN" }) return@actionButton
+                    dao.saveSession(current.copy(state = "SENDING"))
+                    AuditAccessibilityService.instance?.startLoop()
+                    togglePanel()
+                })
+            } else {
+                card.addView(actionButton("إيقاف مؤقت", bubbleTeal, Color.WHITE) {
+                    pauseOrStop(false)
+                    togglePanel()
+                })
             }
+        }
+        card.addView(actionButton("إنهاء الإرسال", Color.WHITE, 0xFFDC2626.toInt()) {
+            pauseOrStop(true)
+            stopSelf()
         })
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            (resources.displayMetrics.widthPixels * 0.86f).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
         )
         params.gravity = Gravity.CENTER
-        panel = box
-        windowManager?.addView(box, params)
+        panel = card
+        windowManager?.addView(card, params)
     }
+
+    private fun label(text: String, size: Float, color: Int, bold: Boolean): TextView = TextView(this).apply {
+        this.text = text
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+        setTextColor(color)
+        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setPadding(0, 8, 0, 8)
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
+    }
+
+    private fun chip(text: String, background: Int, color: Int): TextView = label(text, 13f, color, true).apply {
+        setPadding(24, 12, 24, 12)
+        this.background = GradientDrawable().apply {
+            cornerRadius = 32f
+            setColor(background)
+        }
+    }
+
+    private fun actionButton(text: String, background: Int, color: Int, onClick: () -> Unit): TextView = TextView(this).apply {
+        this.text = text
+        gravity = Gravity.CENTER
+        setTextColor(color)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setPadding(24, 28, 24, 28)
+        this.background = GradientDrawable().apply {
+            cornerRadius = 40f
+            setColor(background)
+            if (background == Color.WHITE) setStroke(3, color)
+        }
+        setOnClickListener { onClick() }
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = 16 }
+    }
+
+    private val bubbleTeal = 0xFF0F766E.toInt()
+    private val bubbleInk = 0xFF1B2A4A.toInt()
+    private val bubbleMuted = 0xFF64748B.toInt()
 
     private fun pauseOrStop(stop: Boolean) {
         val dao = (application as LorkApp).db.dao()
