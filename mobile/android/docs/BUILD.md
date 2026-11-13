@@ -33,4 +33,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 لا يُبنى release لأن المستودع لا يحتوي مفتاح إصدار، ولم يُنشأ مفتاح جديد حتى لا يُظن أنه يحدّث التثبيت القديم.
 
-سير GitHub Actions في `.github/workflows/android-audit.yml` يبني APK debug ويرفعه كأثر قابل للتنزيل. شهادة ذلك الأثر تختلف عن شهادة هذا الجهاز، ويجب قراءة SHA-1 من الأثر نفسه قبل إنشاء عميل OAuth.
+نسخة هذا البناء محفوظة في `dist/cloud.lork.audit-1.0.0-debug.apk` لتنزيلها من المستودع. سير `.github/workflows/android-audit.yml` يبني APK debug ويرفعه أثراً، وشهادته تختلف عن شهادة الملف المحفوظ. اقرأ SHA-1 من الملف الذي ستثبّته قبل إنشاء عميل OAuth. وقت الدفع كان حساب GitHub مقفلاً بسبب الفوترة، فلم يُنتج Actions أثراً.

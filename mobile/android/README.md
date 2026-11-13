@@ -17,7 +17,7 @@
 | البند | القيمة |
 | --- | --- |
 | النوع | debug، لا يوجد مفتاح إصدار في المستودع |
-| الملف | `app/build/outputs/apk/debug/app-debug.apk` |
+| الملف | `dist/cloud.lork.audit-1.0.0-debug.apk` |
 | الحزمة | `cloud.lork.audit` |
 | الإصدار | `1.0.0` / `1` |
 | minSdk / targetSdk | 26 / 35 |
