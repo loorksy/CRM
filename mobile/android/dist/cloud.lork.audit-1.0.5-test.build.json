@@ -1,0 +1,41 @@
+{
+  "source_commit": "6a679a0c80abfe8a2e3f0d9dcf5f2da30fc09f04",
+  "package": "cloud.lork.audit",
+  "version_name": "1.0.5",
+  "version_code": 6,
+  "build_type": "debug",
+  "apk": "cloud.lork.audit-1.0.5-test.apk",
+  "bytes": 17511596,
+  "sha256": "73ff9e90ee3e269a278f7ce671862700171e4a04c52f52488f4fea01cb5e8ee2",
+  "certificate_sha1": "70:39:6C:5E:FC:26:C4:FB:63:C3:9C:1A:B2:7B:AA:43:A7:C5:B2:54",
+  "same_certificate_as_1_0_4": true,
+  "minimum_sdk": 26,
+  "target_sdk": 35,
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "signature_verified": true,
+  "zip_integrity": "OK",
+  "engine_tests": {
+    "tests": 43,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "app_unit_tests": {
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "total_tests": 55,
+  "test_data": "Synthetic picker cases include 713 files; actual user Google files were not accessed.",
+  "native_android_checks_this_build": {
+    "status": "not_run",
+    "reason": "No connected Android device."
+  },
+  "google_and_whatsapp_real_tests": false
+}
