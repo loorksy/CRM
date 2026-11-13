@@ -11,6 +11,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -108,6 +109,9 @@ interface AppDao {
     @Query("SELECT * FROM cycles WHERE id = :id")
     fun cycle(id: Long): CycleEntity?
 
+    @Query("UPDATE cycles SET name = :name, updatedAt = :now WHERE id = :id AND account_email = :email")
+    fun renameCycle(email: String, id: Long, name: String, now: Long): Int
+
     @Query("UPDATE cycles SET active = 0 WHERE account_email = :email")
     fun clearActive(email: String)
 
@@ -116,6 +120,21 @@ interface AppDao {
 
     @Query("SELECT * FROM cycles WHERE account_email = :email AND active = 1 LIMIT 1")
     fun activeCycle(email: String): CycleEntity?
+
+    @Transaction
+    fun insertActiveCycle(cycle: CycleEntity): Long {
+        clearActive(cycle.accountEmail)
+        return saveCycle(cycle.copy(active = true))
+    }
+
+    @Transaction
+    fun activateCycle(email: String, id: Long, now: Long): CycleEntity? {
+        val current = cycle(id) ?: return null
+        if (current.accountEmail != email) return null
+        clearActive(email)
+        markActive(id, now)
+        return cycle(id)
+    }
 
     @Insert
     fun insertSnapshot(snapshot: SnapshotEntity): Long

@@ -62,6 +62,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import cloud.lork.audit.engine.LinkPhase
 import cloud.lork.audit.engine.ParseMode
 import cloud.lork.audit.engine.Readiness
@@ -107,6 +111,7 @@ fun AppRoot(model: HomeViewModel = viewModel()) {
                     when {
                         model.showReview -> ReviewPage(model)
                         model.screen == Screen.Audit -> AuditHome(model, link.email, link.phase, context)
+                        model.screen == Screen.Search -> SearchHome(model, context)
                         model.screen == Screen.Send -> SendHome(model, context)
                         model.screen == Screen.Settings -> LinkHome(model, context)
                     }
@@ -123,10 +128,11 @@ private fun BottomNav(current: Screen, onSelect: (Screen) -> Unit) {
             .fillMaxWidth()
             .shadow(8.dp)
             .background(Color.White)
-            .padding(horizontal = 28.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         NavItem("التدقيق", current == Screen.Audit) { onSelect(Screen.Audit) }
+        NavItem("البحث", current == Screen.Search) { onSelect(Screen.Search) }
         NavItem("الإرسال", current == Screen.Send) { onSelect(Screen.Send) }
     }
 }
@@ -137,11 +143,11 @@ private fun NavItem(label: String, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            if (label == "الإرسال") Icons.AutoMirrored.Filled.Send else Icons.Filled.Check,
+            when (label) { "الإرسال" -> Icons.AutoMirrored.Filled.Send; "البحث" -> Icons.Filled.Search; else -> Icons.Filled.Check },
             contentDescription = null,
             tint = if (selected) Teal else Muted,
         )
@@ -150,87 +156,121 @@ private fun NavItem(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AuditHome(model: HomeViewModel, email: String?, phase: LinkPhase, context: Context) {
-    val ready = model.hasCurrentSnapshot()
-    val advice = auditReadiness(model.link.value, ready, context.isOnline())
-    Header("تدقيق لورك", "التدقيق", onSettings = { model.screen = Screen.Settings })
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(if (ready) "بياناتك جاهزة على الهاتف" else "نزّل بيانات الدورة لبدء التدقيق", color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        StatusPill(phase == LinkPhase.DATA_READY || phase == LinkPhase.SOURCES_READY || email != null, if (email != null) "متصل" else "غير مرتبط")
-    }
+private fun CyclePanel(model: HomeViewModel) {
     SoftCard {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("الدورة الحالية", color = Muted, fontSize = 12.sp)
-                Text(model.cycle?.name ?: "لم تُختر دورة", color = Ink, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+        Text("الدورة المالية", color = Muted, fontSize = 12.sp)
+        SelectLine(model.cycle?.name ?: "اختر دورة أو أنشئ دورة مالية") {
+            model.cyclePickerOpen = !model.cyclePickerOpen
+        }
+        if (model.cyclePickerOpen || model.cycle == null) {
+            Text("الدورات المحفوظة لهذا الحساب على الهاتف", color = Muted, fontSize = 12.sp)
+            model.cycles.forEach { item ->
+                OutlineButton("تحميل ${item.name}", Modifier.fillMaxWidth(), !model.busy) { model.selectCycle(item.id) }
             }
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(TealSoft)
-                    .clickable(enabled = !model.busy) { model.download(false, context) },
-                contentAlignment = Alignment.Center,
-            ) { Text("↻", color = Teal, fontWeight = FontWeight.Bold) }
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(syncCaption(model, ready), color = Muted, fontSize = 13.sp)
-    }
-    val total = model.rows.size
-    val agent = model.rows.count { it.contains("وكيل") }
-    val management = model.rows.count { it.contains("ادارة") || it.contains("إدارة") }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Stat("المستخدمون", if (total == 0) "0" else total.toString(), Modifier.weight(1f))
-        Stat("غير موجود", (total - agent - management).coerceAtLeast(0).toString(), Modifier.weight(1f))
-        Stat("للمراجعة", (agent + management).toString(), Modifier.weight(1f))
-    }
-    SoftCard {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(TealSoft), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Description, null, tint = Teal)
+            if (model.cycle != null) {
+                MiniField("تعديل اسم الدورة الحالية", model.cycleRename) { model.cycleRename = it }
+                OutlineButton("حفظ اسم الدورة", Modifier.fillMaxWidth(), !model.busy) { model.renameCycle() }
             }
-            Column(Modifier.weight(1f)) {
-                Text("ابدأ تدقيق الدورة", color = Ink, fontWeight = FontWeight.Bold)
-                Text("راجع النتائج قبل اعتمادها في الجداول", color = Muted, fontSize = 12.sp)
-            }
+            MiniField("اسم دورة جديدة", model.newCycleName) { model.newCycleName = it }
+            OutlineButton("إنشاء دورة", Modifier.fillMaxWidth(), !model.busy) { model.createCycle() }
         }
-        Spacer(Modifier.height(12.dp))
-        PrimaryButton(if (advice.readiness == Readiness.READY) "تنفيذ التدقيق" else advice.action, !model.busy) {
-            model.runAudit(context)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = model.force, onCheckedChange = { model.force = it })
-            Text("فرض الإعادة إذا لم يتغيّر جدول المستخدمين", color = Muted, fontSize = 12.sp)
-        }
-        if (model.message.isNotBlank()) Text(model.message, color = Ink, fontSize = 13.sp)
-    }
-    SearchField(model.query, "ابحث برقم المستخدم") { model.query = it }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlineButton("بحث", Modifier.weight(1f), !model.busy) { model.search() }
-        OutlineButton("تدقيق يدوي", Modifier.weight(1f), !model.busy) { model.manual() }
-    }
-    if (model.searchText.isNotBlank()) SoftCard { Text(model.searchText, color = Ink) }
-    if (model.planId != null || model.rows.isNotEmpty()) {
-        SoftCard {
-            Row(
-                Modifier.fillMaxWidth().clickable { model.showReview = model.rows.isNotEmpty() || model.planId != null },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("سجل المزامنة والنتائج", color = Ink, fontWeight = FontWeight.SemiBold)
-                Text("عرض", color = Teal, fontWeight = FontWeight.Bold)
+        if (model.cycle != null) {
+            Text(if (model.auditClosed) "تم إغلاق جلسة التدقيق" else "جلسة التدقيق نشطة", color = Teal, fontSize = 12.sp)
+            OutlineButton(if (model.auditClosed) "إعادة فتح جلسة التدقيق" else "إغلاق التدقيق", Modifier.fillMaxWidth(), !model.busy) {
+                model.toggleAuditSession()
             }
         }
     }
 }
 
 @Composable
+private fun AuditHome(model: HomeViewModel, email: String?, phase: LinkPhase, context: Context) {
+    val ready = model.hasCurrentSnapshot()
+    val online = context.isOnline()
+    Header("تدقيق الرواتب", "اختر الدورة ثم زامن وطبّق التدقيق", onSettings = { model.screen = Screen.Settings })
+    StatusPill(model.googleAuthorizedNow(), email ?: "اربط حساب Google")
+    CyclePanel(model)
+    if (model.cycle != null) {
+        SoftCard {
+            Text("أوراق الدورة", color = Ink, fontWeight = FontWeight.Bold)
+            Text("الإدارة: ${model.sources.mgmtSheet.ifBlank { "غير محددة" }} · الوكيل: ${model.sources.agentSheet.ifBlank { "غير محددة" }}", color = Muted, fontSize = 13.sp)
+            Text("معلومات المستخدمين: ${model.sources.userSheet.ifBlank { "غير محددة" }}", color = Muted, fontSize = 13.sp)
+            Text("الأعمدة: رقم ${model.colUser}، ورقة ${model.colTitle}، راتب ${model.colSalary} · خصم ${model.discount}%", color = Muted, fontSize = 12.sp)
+            OutlineButton("اختيار الجداول والأوراق والأعمدة", Modifier.fillMaxWidth(), !model.busy) { model.screen = Screen.Settings }
+            Text(syncCaption(model, ready), color = Muted, fontSize = 12.sp)
+        }
+        val total = model.rows.size
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Stat("المستخدمون", total.toString(), Modifier.weight(1f))
+            Stat("سحب وكالة", model.rows.count { it.contains("وكيل") }.toString(), Modifier.weight(1f))
+            Stat("سحب إدارة", model.rows.count { it.contains("ادارة") || it.contains("إدارة") }.toString(), Modifier.weight(1f))
+        }
+        SoftCard {
+            Text("تدقيق الدورة", color = Ink, fontWeight = FontWeight.Bold)
+            Text(if (online) "يزامن أوراق الدورة ثم يكتب الرواتب والحالات، وينسخ صفوف الإدارة إلى أوراق العناوين ويطبّق الألوان." else "دون اتصال: المعاينة من آخر لقطة محفوظة، وتطبيق النتائج عند الاتصال.", color = Muted, fontSize = 13.sp)
+            PrimaryButton(if (model.busy) "جارٍ تنفيذ العملية…" else if (online) "تدقيق — مزامنة وتطبيق" else "معاينة دون إنترنت", !model.busy) { model.runAudit(context) }
+            if (ready && online) OutlineButton("معاينة محلية فقط", Modifier.fillMaxWidth(), !model.busy) { model.previewOffline() }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = model.force, enabled = !model.busy, onCheckedChange = { model.force = it })
+                Text("فرض الإعادة إذا لم يتغيّر جدول المستخدمين", color = Muted, fontSize = 12.sp)
+            }
+        }
+    }
+    if (model.message.isNotBlank()) Banner(TealSoft, Teal, model.message)
+    if (model.rows.isNotEmpty() || model.planId != null) OutlineButton("عرض نتائج آخر تدقيق", Modifier.fillMaxWidth()) { model.showReview = true }
+}
+
+@Composable
+private fun SearchHome(model: HomeViewModel, context: Context) {
+    Header("البحث والتدقيق", "استعلام عن مستخدم ثم تدقيقه في الورقة المختارة")
+    CyclePanel(model)
+    SearchField(model.query, "رقم المستخدم") { if (!model.busy) model.query = it }
+    MiniField("خصم البحث (%)", model.searchDiscount) { if (!model.busy) model.searchDiscount = it }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = model.searchAllCycles, onCheckedChange = { model.searchAllCycles = it })
+        Text("البحث الشامل في كل الدورات المحفوظة", color = Ink, fontSize = 13.sp)
+    }
+    PrimaryButton("بحث", !model.busy) { model.search() }
+    model.globalSearchResults.forEach { (item, result) ->
+        SoftCard {
+            Text(item.name, color = Ink, fontWeight = FontWeight.Bold)
+            Text(result, color = Muted, fontSize = 13.sp)
+            OutlineButton("اختيار هذه الدورة للتدقيق", Modifier.fillMaxWidth(), !model.busy) {
+                model.selectCycle(item.id)
+                model.searchAllCycles = false
+                model.search()
+            }
+        }
+    }
+    if (model.searchText.isNotBlank()) {
+        SoftCard { Text(model.searchText, color = Ink) }
+        if (model.hasCurrentSnapshot()) SoftCard {
+            Text("التدقيق الانتقائي · ${model.cycle?.name.orEmpty()}", color = Ink, fontWeight = FontWeight.Bold)
+            Text("نسخ صف الإدارة إلى ورقة الهدف وتلوين الصفوف وتحديث حالة المستخدم.", color = Muted, fontSize = 13.sp)
+            OutlineButton("تحميل أوراق جدول الإدارة", Modifier.fillMaxWidth(), !model.busy) { model.loadManualTargets(context) }
+            model.manualTargets.forEach { title ->
+                SelectLine((if (model.manualTarget == title) "✓ " else "") + title) {
+                    model.manualTarget = title
+                    model.manualNewTarget = ""
+                }
+            }
+            Text("الورقة المختارة: ${model.manualTarget.ifBlank { "لم تُختر" }}", color = Muted, fontSize = 12.sp)
+            MiniField("أو اسم ورقة جديدة", model.manualNewTarget) { model.manualNewTarget = it }
+            PrimaryButton("تنفيذ التدقيق الانتقائي في Google", !model.busy) { model.manual(context) }
+        }
+    }
+    if (model.message.isNotBlank()) Text(model.message, color = Ink)
+}
+
+@Composable
 private fun ReviewPage(model: HomeViewModel) {
-    Header("مراجعة النتائج", model.cycle?.name ?: "الدورة", onBack = { model.showReview = false })
-    Banner(AmberBg, Amber, "لم تُكتب التغييرات في Google بعد")
+    val context = LocalContext.current
+    Header("نتيجة التدقيق", model.cycle?.name ?: "الدورة", onBack = { model.showReview = false })
+    Banner(if (model.auditApplied) GreenBg else AmberBg, if (model.auditApplied) Teal else Amber,
+        if (model.auditApplied) "تم تطبيق النتائج في Google والتحقق منها" else if (model.auditOfflinePreview) "معاينة محلية فقط — لم تُكتب نتائج هذه المعاينة في Google" else "راجع تقرير العملية أدناه؛ لم يُؤكّد اكتمال التدقيق")
     SoftCard {
         Text(model.rows.size.toString(), color = Ink, fontWeight = FontWeight.Bold, fontSize = 36.sp)
-        Text("تغييراً للمراجعة", color = Muted)
+        Text("صف نتيجة", color = Muted)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("الكل", "الإدارة", "الوكيل").forEach { name ->
@@ -254,94 +294,70 @@ private fun ReviewPage(model: HomeViewModel) {
     }
     if (model.message.isNotBlank()) Text(model.message, color = Ink, fontSize = 13.sp)
     if (model.planId != null) {
-        PrimaryButton("اعتماد الكتابة في Google", !model.busy) { model.approve() }
-        Text("راجع التغييرات ثم اعتمد الكتابة. تنفيذ التدقيق لا يكتب وحده.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        PrimaryButton("استكمال الكتابة المتوقفة", !model.busy) { model.approve() }
+        Text("تستكمل الخطوات الناقصة من العملية المحفوظة بعد التحقق مما كُتب.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
+    if (model.auditOfflinePreview) PrimaryButton("الاتصال والمزامنة وتطبيق التدقيق", !model.busy) { model.runAudit(context) }
     OutlineButton("العودة للتدقيق", Modifier.fillMaxWidth()) { model.showReview = false }
 }
 
 @Composable
 private fun SendHome(model: HomeViewModel, context: Context) {
-    val notices = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val preview = parseMessages(model.rawMessages, ParseMode.PARAGRAPH_THEN_LINES)
-    val accessOn = accessibilityEnabled(context) && AuditAccessibilityService.instance != null
-    val overlayOn = Settings.canDrawOverlays(context)
-    Header("الإرسال", null, onSettings = { model.screen = Screen.Settings })
-    Banner(GreenBg, Teal, "الإرسال إلى المحادثة المفتوحة. افتح محادثة واتساب المطلوبة أولاً.")
-    Text("الرسائل", color = Ink, fontWeight = FontWeight.Bold)
-    Text("افصل بين الرسائل بسطر فارغ.", color = Muted, fontSize = 12.sp)
-    SearchField(model.rawMessages, "نص الرسائل", singleLine = false) { model.rawMessages = it }
+    val notices = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { model.showSendBubble(context) }
+    var accessOn by remember { mutableStateOf(false) }
+    var overlayOn by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        accessOn = accessibilityEnabled(context) && AuditAccessibilityService.instance != null
+        overlayOn = Settings.canDrawOverlays(context)
+        model.refreshSend()
+        onPauseOrDispose { }
+    }
+    Header("الإرسال", "افتح الفقاعة ثم جهّز الرسائل داخل واتساب")
     SoftCard {
-        Text("المعاينة · ${preview.size} ${if (preview.size == 2) "رسالتان" else "رسائل"}", color = Teal, fontWeight = FontWeight.SemiBold)
-        preview.take(4).forEach { body ->
-            Text(body.take(160), color = Ink, modifier = Modifier.padding(top = 6.dp))
-        }
+        Text("الإرسال من الفقاعة العائمة", color = Ink, fontWeight = FontWeight.Bold)
+        Text("افتح محادثة واتساب المطلوبة، والصق الرسائل في الفقاعة. تفصل الفقاعة الفقرات، وتعرض العدد، وتتيح سرعة من 1 إلى 1000 رسالة في الدقيقة.", color = Muted, fontSize = 13.sp)
+        Text("يمكنك تعديل النص والسرعة والبدء والإيقاف من الفقاعة دون الرجوع لهذه الشاشة.", color = Muted, fontSize = 13.sp)
     }
-    Text("رسالة في الدقيقة", color = Muted, fontSize = 12.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(10, 60, 300, 1000).forEach { speed ->
-            FilterPill(speed.toString(), model.mpm == speed) { model.changeSendRate(speed) }
-        }
-    }
-    PermitRow("إمكانية الوصول", accessOn) {
-        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    }
+    PermitRow("إمكانية الوصول", accessOn) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
     PermitRow("الظهور فوق التطبيقات", overlayOn) {
         context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = model.confirmedChat, onCheckedChange = { model.confirmedChat = it })
-        Text("المحادثة المفتوحة هي الوجهة", color = Ink)
-    }
-    PrimaryButton("بدء الإرسال", !model.busy) {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
+    PrimaryButton("فتح فقاعة الإرسال") {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notices.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        model.startSend(context)
+        } else model.showSendBubble(context)
     }
-    Text("يمكنك الإيقاف من الفقاعة العائمة. الضغط على الإرسال لا يؤكد وصول الرسالة.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    Text("الوجهة هي محادثة واتساب المفتوحة. الضغط على الإرسال لا يؤكد التسليم.", color = Muted, fontSize = 12.sp)
     if (model.message.isNotBlank()) Text(model.message, color = Ink)
-    if (model.sendItems.isNotEmpty()) {
-        Text("الطابور: ${sendStateArabic(model.sendState)}", color = Ink, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlineButton("إيقاف مؤقت", Modifier.weight(1f)) { model.pauseSend() }
-            OutlineButton("استئناف", Modifier.weight(1f)) { model.resumeSend() }
-        }
-        DangerButton("إنهاء الإرسال") { model.stopSend(context) }
-        val uncertain = model.sendItems.any { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }
-        if (uncertain) {
-            Banner(AmberBg, Amber, "رسالة غير مؤكدة. راجعها قبل إعادة المحاولة.")
-            PrimaryButton("راجعت الرسالة") { model.reviewUncertain() }
-        }
-        model.sendItems.take(12).forEach { item ->
-            Text("${item.position + 1}. ${statusArabic(item.status)} — ${item.body.take(80)}", color = Ink, fontSize = 13.sp)
-        }
-    }
 }
 
 @Composable
 private fun LinkHome(model: HomeViewModel, context: Context) {
     val link by model.link.collectAsState()
-    Header("ربط الجداول", "إعداد مرة واحدة", onBack = { model.screen = Screen.Audit })
+    Header("ربط أوراق الدورة", model.cycle?.name ?: "أنشئ دورة أولاً", onBack = { model.screen = Screen.Audit })
     SoftCard {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatusPill(link.email != null && link.phase != LinkPhase.AUTH_FAILED && link.phase != LinkPhase.CANCELED && link.phase != LinkPhase.NONE, "")
             Column(Modifier.weight(1f)) {
-                Text(if (link.email != null) "حساب Google مرتبط" else "لم يُربط حساب Google", color = Ink, fontWeight = FontWeight.Bold)
-                Text(link.email ?: link.message, color = Muted, fontSize = 13.sp)
+                Text(if (model.googleAuthorizedNow()) "حساب Google مرتبط" else "تفويض Google يحتاج متابعة", color = Ink, fontWeight = FontWeight.Bold)
+                link.email?.let { Text(it, color = Muted, fontSize = 13.sp) }
+                Text(link.message, color = Muted, fontSize = 13.sp)
             }
         }
         if (link.diagnostic.isNotBlank()) Text("رمز التشخيص: ${link.diagnostic}", color = Amber, fontSize = 12.sp)
         Spacer(Modifier.height(8.dp))
-        PrimaryButton(if (link.phase == LinkPhase.NONE || link.phase == LinkPhase.CANCELED) "ربط Google" else "إعادة محاولة الربط") {
+        PrimaryButton(if (link.phase == LinkPhase.NONE || link.phase == LinkPhase.CANCELED) "ربط Google" else "إعادة محاولة الربط", !model.busy && link.phase != LinkPhase.WAITING_CONSENT) {
             (context.applicationContext as LorkApp).session.begin()
         }
     }
-    SourceCard("الإدارة", "جدول الإدارة", model.sources.mgmtSheet, model.role == "إدارة") { model.role = "إدارة" }
-    SourceCard("الوكيل", "جدول الوكيل", model.sources.agentSheet, model.role == "وكيل") { model.role = "وكيل" }
-    SourceCard("معلومات المستخدمين", "قاعدة المستخدمين", model.sources.userSheet, model.role == "مستخدمون") { model.role = "مستخدمون" }
+    CyclePanel(model)
+    if (model.cycle == null) {
+        if (model.message.isNotBlank()) Text(model.message, color = Ink)
+        return
+    }
+    SourceCard("الإدارة", "جدول الإدارة", model.sources.mgmtSheet, model.role == "إدارة") { model.changeSourceRole("إدارة") }
+    SourceCard("الوكيل", "جدول الوكيل", model.sources.agentSheet, model.role == "وكيل") { model.changeSourceRole("وكيل") }
+    SourceCard("معلومات المستخدمين", "قاعدة المستخدمين", model.sources.userSheet, model.role == "مستخدمون") { model.changeSourceRole("مستخدمون") }
     SearchField(model.pasted, "لصق رابط ملف أو معرّفه") { model.pasted = it }
     OutlineButton("استخدام رابط ملف", Modifier.fillMaxWidth()) { model.applyPastedId() }
     OutlineButton(if (model.busy) "جارٍ التحميل" else "عرض الجداول", Modifier.fillMaxWidth(), !model.busy) { model.loadFiles(context) }
@@ -368,10 +384,13 @@ private fun LinkHome(model: HomeViewModel, context: Context) {
         MiniField("عمود رقم الوكيل", model.colAgent) { model.colAgent = it }
         MiniField("عمود راتب الوكيل", model.colAgentSalary) { model.colAgentSalary = it }
     }
-    PrimaryButton("حفظ الربط وتنزيل البيانات", !model.busy) {
-        model.savePreferences()
-        if (model.sources.complete) model.download(false, context)
+    PrimaryButton("حفظ إعدادات الدورة", !model.busy) {
+        if (model.savePreferences()) model.screen = Screen.Audit
     }
+    OutlineButton("مزامنة لقطة للعمل دون إنترنت", Modifier.fillMaxWidth(), !model.busy) {
+        if (model.savePreferences()) model.download(false, context)
+    }
+    if (model.message.isNotBlank()) Text(model.message, color = Ink)
     OutlineButton("تصدير النسخة المحلية", Modifier.fillMaxWidth()) { model.export(context) }
     Text(model.diagnostic(context), color = Muted, fontSize = 12.sp)
     OutlineButton("نسخ التشخيص", Modifier.fillMaxWidth()) { model.copyDiagnostic(context) }

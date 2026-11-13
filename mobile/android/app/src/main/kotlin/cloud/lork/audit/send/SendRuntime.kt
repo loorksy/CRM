@@ -6,6 +6,20 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.ClipboardManager
+import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.ScrollView
+import android.widget.SeekBar
+import cloud.lork.audit.db.KvEntity
+import cloud.lork.audit.engine.ParseMode
+import cloud.lork.audit.engine.parseMessages
+import cloud.lork.audit.engine.sendQueueReplacementError
+import org.json.JSONObject
+import java.util.UUID
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -221,12 +235,21 @@ class AuditAccessibilityService : AccessibilityService() {
         if (active != null && WhatsAppMatch.isSupportedPackage(active.packageName?.toString())) return active
         active?.recycle()
         val windows = windows ?: return null
-        for (window in windows) {
+        // The composer/keyboard can be the active window. Prefer the highest
+        // WhatsApp window underneath it, including in split-screen mode.
+        for (window in windows.sortedWith(compareByDescending<android.view.accessibility.AccessibilityWindowInfo> { it.isFocused }
+            .thenByDescending { it.isActive }.thenByDescending { it.layer })) {
             val root = window.root ?: continue
             if (WhatsAppMatch.isSupportedPackage(root.packageName?.toString())) return root
             root.recycle()
         }
         return null
+    }
+
+    fun hasVisibleWhatsApp(): Boolean {
+        val root = findChatRoot() ?: return false
+        root.recycle()
+        return true
     }
 
     private fun dao() = (application as LorkApp).db.dao()
@@ -280,6 +303,12 @@ class FloatingBubbleService : Service() {
     private var bubble: View? = null
     private var panel: View? = null
     private var counterView: TextView? = null
+    private var panelStatus: TextView? = null
+    private var panelProgress: ProgressBar? = null
+    private var panelFeedback: TextView? = null
+    private var panelSignature: String? = null
+    private var draftText = ""
+    private var draftMpm = 100
     private val uiTick = object : Runnable {
         override fun run() {
             updateCounter()
@@ -294,7 +323,8 @@ class FloatingBubbleService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         startInForeground()
-        showBubble()
+        loadDraft()
+        if (Settings.canDrawOverlays(this)) showBubble() else stopSelf()
         handler.post(uiTick)
     }
 
@@ -305,12 +335,8 @@ class FloatingBubbleService : Service() {
                 stopSelf()
             }
             ACTION_PAUSE -> pauseOrStop(stop = false)
-            ACTION_RESUME -> {
-                val dao = (application as LorkApp).db.dao()
-                val session = dao.session()
-                if (session != null) dao.saveSession(session.copy(state = "SENDING"))
-                AuditAccessibilityService.instance?.startLoop()
-            }
+            ACTION_RESUME -> resumeQueue()
+            ACTION_SHOW_PANEL -> if (panel == null && Settings.canDrawOverlays(this)) showPanel()
         }
         return START_STICKY
     }
@@ -405,7 +431,13 @@ class FloatingBubbleService : Service() {
                         params.y = event.rawY.toInt() - dy
                         windowManager?.updateViewLayout(column, params)
                     }
-                    MotionEvent.ACTION_UP -> if (!moved || event.eventTime - event.downTime < 220) togglePanel()
+                    MotionEvent.ACTION_UP -> {
+                        if (moved && event.rawY > resources.displayMetrics.heightPixels - dp(100)) {
+                            pauseOrStop(true)
+                            hidePanel()
+                            stopSelf()
+                        } else if (!moved || event.eventTime - event.downTime < 220) togglePanel()
+                    }
                 }
                 return true
             }
@@ -415,97 +447,291 @@ class FloatingBubbleService : Service() {
         updateCounter()
     }
 
+    private fun loadDraft() {
+        val dao = (application as LorkApp).db.dao()
+        val json = dao.kv(DRAFT_KEY)?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val session = dao.session()
+        draftText = json?.optString("text") ?: session?.rawText.orEmpty()
+        draftMpm = (json?.optInt("mpm", 100) ?: session?.mpm ?: 100).coerceIn(1, 1000)
+    }
+
+    private fun persistDraft() {
+        (application as LorkApp).db.dao().saveKv(
+            KvEntity(DRAFT_KEY, JSONObject().put("text", draftText).put("mpm", draftMpm).toString()),
+        )
+    }
+
+    private fun queueSignature(): String {
+        val dao = (application as LorkApp).db.dao()
+        return dao.session()?.state.orEmpty() + "|" + dao.items()
+            .filter { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }
+            .joinToString { it.itemId + it.status }
+    }
+
     private fun updateCounter() {
-        val items = (application as LorkApp).db.dao().items()
+        val dao = (application as LorkApp).db.dao()
+        val items = dao.items()
+        val session = dao.session()
         val done = items.count { it.status == "SEND_PRESSED" }
         counterView?.text = "$done / ${items.size}"
+        panelStatus?.text = "${stateLabel(session?.state)} · $done / ${items.size}"
+        panelProgress?.max = items.size.coerceAtLeast(1)
+        panelProgress?.progress = done
+        if (panel != null && panelSignature != queueSignature()) {
+            hidePanel()
+            showPanel()
+        }
+    }
+
+    private fun stateLabel(state: String?): String = when (state) {
+        "WAITING_CHAT" -> "بانتظار محادثة واتساب"
+        "SENDING" -> "جارٍ الإرسال"
+        "PAUSED" -> "الإرسال متوقف مؤقتاً"
+        "STOPPED" -> "أُوقفت الدفعة"
+        "DONE" -> "اكتمل الضغط على الإرسال"
+        else -> "جاهز"
+    }
+
+    private fun hidePanel() {
+        panel?.let { runCatching { windowManager?.removeView(it) } }
+        panel = null
+        panelStatus = null
+        panelProgress = null
+        panelFeedback = null
+        panelSignature = null
     }
 
     private fun togglePanel() {
-        if (panel != null) {
-            runCatching { windowManager?.removeView(panel) }
-            panel = null
-            return
-        }
+        if (panel != null) hidePanel() else showPanel()
+    }
+
+    private fun feedback(message: String) {
+        panelFeedback?.text = message
+        show(this, message)
+    }
+
+    private fun showPanel() {
+        if (panel != null) return
         val dao = (application as LorkApp).db.dao()
         val items = dao.items()
         val session = dao.session()
         val uncertain = items.firstOrNull { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }
-        val done = items.count { it.status == "SEND_PRESSED" }
-        val total = items.size
+        val replacementError = sendQueueReplacementError(sessionOf(session), itemsOf(items))
+        val mayCompose = replacementError == null
+        if (mayCompose) loadDraft() else if (session != null) {
+            draftText = session.rawText
+            draftMpm = session.mpm.coerceIn(1, 1000)
+        }
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutDirection = View.LAYOUT_DIRECTION_RTL
-            setPadding(dp(18), dp(16), dp(18), dp(16))
+            setPadding(dp(18), dp(12), dp(18), dp(16))
             background = GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
                 setColor(Color.WHITE)
             }
         }
-        card.addView(label("تدقيق لورك", 16f, bubbleInk, true))
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        heading.addView(label("الإرسال", 18f, bubbleInk, true), LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(label("إغلاق ×", 14f, bubbleTeal, false).apply { setOnClickListener { hidePanel() } })
+        card.addView(heading)
+        panelStatus = label("${stateLabel(session?.state)} · ${items.count { it.status == "SEND_PRESSED" }} / ${items.size}", 13f, bubbleTeal, true)
+        card.addView(panelStatus)
+        panelProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = items.size.coerceAtLeast(1)
+            progress = items.count { it.status == "SEND_PRESSED" }
+            progressTintList = android.content.res.ColorStateList.valueOf(bubbleTeal)
+        }
+        card.addView(panelProgress)
+        card.addView(label("الصق الرسائل هنا وافصل بينها بسطر فارغ. الوجهة هي المحادثة المفتوحة.", 13f, bubbleMuted, false))
+        val input = EditText(this).apply {
+            setText(draftText)
+            hint = "نص الرسائل"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextColor(bubbleInk)
+            setHintTextColor(bubbleMuted)
+            gravity = Gravity.TOP or Gravity.START
+            minLines = 3
+            maxLines = 6
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            isEnabled = mayCompose
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(0xFFF8FAFC.toInt())
+                setStroke(dp(1), 0xFFE2E8F0.toInt())
+            }
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        card.addView(input, LinearLayout.LayoutParams(-1, -2))
+        val count = label("${parseMessages(draftText, ParseMode.PARAGRAPH_THEN_LINES).size} رسالة", 13f, bubbleTeal, true)
+        card.addView(count)
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(value: Editable?) {
+                draftText = value?.toString().orEmpty()
+                count.text = "${parseMessages(draftText, ParseMode.PARAGRAPH_THEN_LINES).size} رسالة"
+                persistDraft()
+            }
+        })
+        card.addView(actionButton("لصق", Color.WHITE, bubbleTeal) {
+            val clipboard = getSystemService(ClipboardManager::class.java)
+            val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()
+            if (text.isNullOrBlank()) feedback("الحافظة فارغة أو لا تحتوي نصاً.") else input.setText(text)
+        }.apply { isEnabled = mayCompose; alpha = if (mayCompose) 1f else 0.45f })
+        val speed = label("$draftMpm رسالة / دقيقة", 14f, bubbleInk, true)
+        card.addView(speed)
+        val seek = SeekBar(this).apply { max = 999; progress = draftMpm - 1 }
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                draftMpm = (progress + 1).coerceIn(1, 1000)
+                speed.text = "$draftMpm رسالة / دقيقة"
+                persistDraft()
+                dao.session()?.let { dao.saveSession(it.copy(mpm = draftMpm)) }
+            }
+        })
+        card.addView(seek)
+        val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf(10, 60, 300, 1000).forEach { rate ->
+            presets.addView(chip(rate.toString(), 0xFFE8F5F1.toInt(), bubbleTeal).apply {
+                gravity = Gravity.CENTER
+                setOnClickListener { seek.progress = rate - 1 }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+        }
+        card.addView(presets)
+        val lastNotice = getSharedPreferences("lork-send", MODE_PRIVATE).getString("last", "").orEmpty()
+        panelFeedback = label(listOf(replacementError.orEmpty(), lastNotice).filter { it.isNotBlank() }.distinct().joinToString("\n"), 13f, bubbleMuted, false)
+        card.addView(panelFeedback)
         if (uncertain != null) {
-            card.addView(chip("الإرسال متوقف", 0xFFFFF6E8.toInt(), 0xFFB45309.toInt()))
-            card.addView(label("رسالة غير مؤكدة", 18f, bubbleInk, true))
-            card.addView(label("راجع المحادثة قبل إعادة المحاولة. لن تُعاد الرسالة تلقائياً.", 13f, bubbleMuted, false))
-            card.addView(label(uncertain.body.take(180), 14f, bubbleInk, false))
-            card.addView(actionButton("راجعت الرسالة", bubbleTeal, Color.WHITE) {
-                items.filter { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }.forEach {
+            card.addView(label("رسالة غير مؤكدة: ${uncertain.body.take(180)}", 14f, 0xFFB45309.toInt(), true))
+            card.addView(actionButton("راجعت المحادثة، إعادة تجهيز الرسالة", bubbleTeal, Color.WHITE) {
+                dao.items().filter { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }.forEach {
                     dao.updateItem(it.itemId, "READY", "أُعيد تجهيزها بعد مراجعة. لن تُرسل حتى تضغط استئناف.")
                 }
                 dao.session()?.let { dao.saveSession(it.copy(state = "PAUSED")) }
-                togglePanel()
+                hidePanel()
+                showPanel()
             })
-        } else {
-            val stateLabel = when (session?.state) {
-                "SENDING", "WAITING_CHAT" -> "جارٍ الإرسال"
-                "PAUSED" -> "الإرسال متوقف"
-                "DONE" -> "اكتمل الإرسال"
-                else -> "جاهز"
-            }
-            card.addView(label(stateLabel, 14f, bubbleTeal, true))
-            card.addView(label("$done / $total", 32f, bubbleInk, true))
-            card.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-                max = total.coerceAtLeast(1)
-                progress = done
-                progressTintList = android.content.res.ColorStateList.valueOf(bubbleTeal)
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        } else if (session?.state == "SENDING" || session?.state == "WAITING_CHAT") {
+            card.addView(actionButton("إيقاف مؤقت", bubbleTeal, Color.WHITE) {
+                pauseOrStop(false)
+                hidePanel()
+                showPanel()
             })
-            card.addView(label("تم الضغط على الإرسال لا يؤكد وصول الرسالة.", 12f, bubbleMuted, false))
-            val meta = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            meta.addView(label("${session?.mpm ?: 10} رسالة / دقيقة", 13f, bubbleInk, false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            meta.addView(label("متبقية ${(total - done).coerceAtLeast(0)}", 13f, bubbleInk, false))
-            card.addView(meta)
-            if (session?.state == "PAUSED") {
-                card.addView(actionButton("استئناف", bubbleTeal, Color.WHITE) {
-                    val current = dao.session() ?: return@actionButton
-                    if (dao.items().any { it.status == "UNCERTAIN" }) return@actionButton
-                    dao.saveSession(current.copy(state = "SENDING"))
-                    AuditAccessibilityService.instance?.startLoop()
-                    togglePanel()
-                })
-            } else {
-                card.addView(actionButton("إيقاف مؤقت", bubbleTeal, Color.WHITE) {
-                    pauseOrStop(false)
-                    togglePanel()
-                })
-            }
+        } else if (session?.state == "PAUSED" && items.any { it.status == "READY" || it.status == "TEXT_PREPARED" }) {
+            card.addView(actionButton("استئناف الدفعة المحفوظة", bubbleTeal, Color.WHITE) { resumeQueue() })
         }
-        card.addView(actionButton("إنهاء الإرسال", Color.WHITE, 0xFFDC2626.toInt()) {
+        if (mayCompose) {
+            val confirmed = CheckBox(this).apply {
+                text = "المحادثة المفتوحة هي الوجهة المطلوبة"
+                setTextColor(bubbleInk)
+                textSize = 13f
+            }
+            card.addView(confirmed)
+            card.addView(actionButton(if (session?.state == "DONE") "إرسال دفعة جديدة" else "إرسال", bubbleTeal, Color.WHITE) {
+                if (!confirmed.isChecked) feedback("أكّد أن المحادثة المفتوحة هي الوجهة قبل البدء.") else beginDraft()
+            })
+        }
+        if (!mayCompose) card.addView(actionButton("إنهاء الدفعة الحالية", Color.WHITE, 0xFFDC2626.toInt()) {
             pauseOrStop(true)
-            stopSelf()
+            hidePanel()
+            showPanel()
         })
+        card.addView(label("الضغط على الإرسال لا يؤكد وصول الرسالة. اسحب الفقاعة إلى أسفل الشاشة لإغلاقها.", 12f, bubbleMuted, false))
+        val scroll = ScrollView(this).apply { addView(card) }
         val params = WindowManager.LayoutParams(
-            (resources.displayMetrics.widthPixels * 0.86f).toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            (resources.displayMetrics.widthPixels * 0.92f).toInt(),
+            (resources.displayMetrics.heightPixels * 0.76f).toInt(),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
-        )
-        params.gravity = Gravity.CENTER
-        panel = card
-        windowManager?.addView(card, params)
+        ).apply {
+            gravity = Gravity.CENTER
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        }
+        panel = scroll
+        panelSignature = queueSignature()
+        windowManager?.addView(scroll, params)
+    }
+
+    private fun beginDraft() {
+        val app = application as LorkApp
+        val dao = app.db.dao()
+        val service = AuditAccessibilityService.instance
+        if (service == null) {
+            feedback("خدمة إمكانية الوصول غير متصلة. فعّلها ثم أعد فتح الفقاعة.")
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            feedback("إذن الظهور فوق التطبيقات غير ممنوح.")
+            return
+        }
+        val replacementError = sendQueueReplacementError(sessionOf(dao.session()), itemsOf(dao.items()))
+        if (replacementError != null) {
+            feedback(replacementError)
+            return
+        }
+        val messages = parseMessages(draftText, ParseMode.PARAGRAPH_THEN_LINES)
+        if (messages.isEmpty()) {
+            feedback("لا توجد رسائل. الصق النص أولاً وافصل الرسائل بسطر فارغ.")
+            return
+        }
+        val visible = service.hasVisibleWhatsApp()
+        val launchers = listOf("com.whatsapp", "com.whatsapp.w4b").mapNotNull {
+            packageManager.getLaunchIntentForPackage(it)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (!visible && launchers.isEmpty()) {
+            feedback("واتساب غير مثبت أو غير متاح من هذا الملف الشخصي.")
+            return
+        }
+        getSharedPreferences("lork-send", MODE_PRIVATE).edit().remove("last").apply()
+        service.stopLoop()
+        val batch = UUID.randomUUID().toString()
+        app.db.runInTransaction {
+            dao.clearItems()
+            dao.insertItems(messages.mapIndexed { index, body ->
+                SendItemEntity("$batch-$index", index, body, "READY", "جاهزة")
+            })
+            dao.saveSession(SendSessionEntity(state = "WAITING_CHAT", idx = 0, mpm = draftMpm, chatKey = null, rawText = draftText))
+            persistDraft()
+        }
+        hidePanel()
+        if (!visible) {
+            val chooser = Intent.createChooser(launchers.first(), "اختر واتساب")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (launchers.size > 1) chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, launchers.drop(1).toTypedArray())
+            runCatching { startActivity(chooser) }.onFailure {
+                dao.session()?.let { dao.saveSession(it.copy(state = "PAUSED")) }
+                showPanel()
+                feedback("تعذر فتح واتساب. افتح المحادثة المطلوبة ثم استأنف الدفعة.")
+                return
+            }
+        }
+        service.startLoop()
+    }
+
+    private fun resumeQueue() {
+        val dao = (application as LorkApp).db.dao()
+        val session = dao.session() ?: return
+        if (AuditAccessibilityService.instance == null || !Settings.canDrawOverlays(this)) {
+            feedback("خدمة إمكانية الوصول أو إذن الظهور غير متاح. أعد تفعيلهما قبل الاستئناف.")
+            return
+        }
+        if (dao.items().any { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }) {
+            feedback("راجع الرسالة غير المؤكدة قبل الاستئناف.")
+            return
+        }
+        if (session.state != "PAUSED") return
+        dao.saveSession(session.copy(state = if (session.chatKey == null) "WAITING_CHAT" else "SENDING", mpm = draftMpm))
+        hidePanel()
+        AuditAccessibilityService.instance?.startLoop()
     }
 
     private fun label(text: String, size: Float, color: Int, bold: Boolean): TextView = TextView(this).apply {
@@ -563,10 +789,12 @@ class FloatingBubbleService : Service() {
     }
 
     companion object {
+        const val ACTION_SHOW_PANEL = "cloud.lork.audit.SHOW_SEND_PANEL"
         const val ACTION_STOP = "cloud.lork.audit.STOP_BUBBLE"
         const val ACTION_PAUSE = "cloud.lork.audit.PAUSE_BUBBLE"
         const val ACTION_RESUME = "cloud.lork.audit.RESUME_BUBBLE"
         private const val CHANNEL = "lork-send"
+        private const val DRAFT_KEY = "send-composer-draft"
 
         fun show(context: android.content.Context, message: String) {
             // الحالة تُحفظ في قاعدة البيانات وتظهر داخل التطبيق؛ لا نعرض توستاً يختفي خلف نافذة.

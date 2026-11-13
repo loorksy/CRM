@@ -2,6 +2,7 @@
 
 package cloud.lork.audit
 
+import android.app.Activity
 import android.Manifest
 import android.app.Application
 import android.content.ClipData
@@ -86,7 +87,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-enum class Screen { Audit, Send, Settings }
+enum class Screen { Audit, Search, Send, Settings }
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val graph = app as LorkApp
@@ -95,6 +96,19 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var busy by mutableStateOf(false)
     var message by mutableStateOf("")
     var cycle by mutableStateOf<CycleEntity?>(null)
+    var cycles by mutableStateOf<List<CycleEntity>>(emptyList())
+    var newCycleName by mutableStateOf("")
+    var cycleRename by mutableStateOf("")
+    var cyclePickerOpen by mutableStateOf(false)
+    var auditClosed by mutableStateOf(false)
+    var auditApplied by mutableStateOf(false)
+    var auditOfflinePreview by mutableStateOf(false)
+    var searchAllCycles by mutableStateOf(false)
+    var searchDiscount by mutableStateOf("0")
+    var globalSearchResults by mutableStateOf<List<Pair<CycleEntity, String>>>(emptyList())
+    var manualTarget by mutableStateOf("")
+    var manualNewTarget by mutableStateOf("")
+    var manualTargets by mutableStateOf<List<String>>(emptyList())
     var rows by mutableStateOf<List<String>>(emptyList())
     var planId by mutableStateOf<String?>(null)
     var planBlocked by mutableStateOf(false)
@@ -125,17 +139,30 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var role by mutableStateOf("إدارة")
     var pasted by mutableStateOf("")
     var columnHint by mutableStateOf("")
-    var rawMessages by mutableStateOf("")
-    var mpm by mutableStateOf(10)
-    var confirmedChat by mutableStateOf(false)
     var sendItems by mutableStateOf<List<SendItemEntity>>(emptyList())
     var sendState by mutableStateOf("IDLE")
 
     fun reload() {
         refreshSend()
-        val email = link.value.email ?: return
-        val current = graph.store.ensureCycle(email)
+        val email = link.value.email ?: run {
+            resetCycleView()
+            cycle = null
+            cycles = emptyList()
+            rows = emptyList()
+            return
+        }
+        cycles = graph.store.cycles(email)
+        val current = graph.db.dao().activeCycle(email) ?: cycles.firstOrNull() ?: run {
+            resetCycleView()
+            cycle = null
+            rows = emptyList()
+            cyclePickerOpen = true
+            return
+        }
+        if (cycle?.id != current.id || cycle?.accountEmail != current.accountEmail) resetCycleView()
         cycle = current
+        cycleRename = current.name
+        auditClosed = graph.store.auditSessionClosed(current)
         sources = decodeSources(current.sourcesJson)
         val columns = decodeColumns(current.columnsJson)
         discount = trimNumber(current.discountRate)
@@ -151,13 +178,73 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         rows = graph.store.rowsPreview(current)
     }
 
-    fun hasCurrentSnapshot(): Boolean = cycle?.let { hasSnapshot(it) } == true
-
-    fun changeSendRate(value: Int) {
-        mpm = value.coerceIn(1, 1000)
-        val dao = graph.db.dao()
-        dao.session()?.let { dao.saveSession(it.copy(mpm = mpm)) }
+    fun createCycle() {
+        if (busy) return
+        val email = link.value.email ?: run {
+            message = "اربط حساب Google أولاً لإنشاء دورة خاصة به."
+            screen = Screen.Settings
+            return
+        }
+        if (newCycleName.isBlank()) { message = "أدخل اسم الدورة المالية."; return }
+        runCatching { graph.store.createCycle(email, newCycleName.trim()) }.onSuccess {
+            newCycleName = ""
+            resetCycleView()
+            reload()
+            screen = Screen.Settings
+            message = "أُنشئت الدورة. اربط ورقتي الإدارة والوكيل، ثم جدول معلومات المستخدمين."
+        }.onFailure { message = it.message ?: "تعذر إنشاء الدورة." }
     }
+
+    fun renameCycle() {
+        if (busy) return
+        val current = cycle ?: return
+        runCatching { graph.store.renameCycle(current.accountEmail, current.id, cycleRename) }
+            .onSuccess { reload(); message = "حُفظ اسم الدورة." }
+            .onFailure { message = it.message ?: "تعذر تعديل اسم الدورة." }
+    }
+
+    fun selectCycle(id: Long) {
+        if (busy) return
+        val email = link.value.email ?: return
+        if (graph.store.selectCycle(email, id) == null) return
+        resetCycleView()
+        reload()
+        cyclePickerOpen = false
+        message = "حُمّلت إعدادات دورة «${cycle?.name}»."
+    }
+
+    private fun resetCycleView() {
+        files = emptyList()
+        sources = Sources()
+        message = ""
+        fileMessage = ""
+        pasted = ""
+        columnHint = ""
+        planId = null
+        showReview = false
+        searchText = ""
+        globalSearchResults = emptyList()
+        manualTargets = emptyList()
+        manualTarget = ""
+        manualNewTarget = ""
+        selectedFileId = ""
+        selectedFile = ""
+        sheetTitles = emptyList()
+        auditApplied = false
+        auditOfflinePreview = false
+    }
+
+    fun toggleAuditSession() {
+        if (busy) return
+        val current = cycle ?: return
+        graph.store.setAuditSessionClosed(current, !auditClosed)
+        auditClosed = graph.store.auditSessionClosed(current)
+        message = if (auditClosed) "أُغلقت جلسة التدقيق لهذه الدورة وحُفظت إعداداتها." else "أُعيد فتح جلسة التدقيق."
+    }
+
+    fun googleAuthorizedNow(): Boolean = !graph.auth.accessToken.isNullOrBlank()
+
+    fun hasCurrentSnapshot(): Boolean = cycle?.let { hasSnapshot(it) } == true
 
     fun snapshotLine(): String {
         val current = cycle ?: return "لا توجد دورة محفوظة."
@@ -168,29 +255,86 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         return "النسخة المحلية: $whenText · ${snap.rowCount} صفاً في معلومات المستخدمين."
     }
 
+    /** Same primary action as payrollRunAudit: synchronize, then apply. */
     fun runAudit(context: Context) {
-        val current = cycle
-        val advice = auditReadiness(link.value, current?.let { hasSnapshot(it) } == true, context.isOnline())
-        if (current == null || advice.readiness != Readiness.READY) {
-            message = advice.message
-            when (advice.readiness) {
-                Readiness.NEED_DOWNLOAD -> if (context.isOnline() && current != null) download(thenAudit = true, context = context)
-                Readiness.NEED_SOURCES, Readiness.NEED_ACCOUNT, Readiness.NEED_AUTH -> screen = Screen.Settings
-                else -> Unit
-            }
+        if (busy) return
+        if (cycle == null) {
+            cyclePickerOpen = true
+            message = "اختر دورة مالية أو أنشئ دورة ثم اربط أوراقها."
             return
         }
-        if (busy) return
+        if (!context.isOnline()) { previewOffline(); return }
+        if (!sources.complete) {
+            screen = Screen.Settings
+            message = "حدد ورقتي الإدارة والوكيل وجدول معلومات المستخدمين لهذه الدورة."
+            return
+        }
+        if (!requireGoogleAuthorization()) return
+        if (!savePreferences()) return
+        val current = cycle ?: return
+        val forced = force
         busy = true
+        auditApplied = false
+        auditOfflinePreview = false
+        planId = null
+        message = "1/2 مزامنة بيانات الدورة من Google…"
         viewModelScope.launch(Dispatchers.IO) {
-            val (plan, text) = graph.store.preview(current, context.isOnline(), force)
+            var pendingPlan: String? = null
+            val text = runCatching {
+                val sync = graph.store.download(current)
+                if (!sync.startsWith("تم تنزيل")) return@runCatching sync
+                withContext(Dispatchers.Main) { message = "2/2 تطبيق الرواتب والحالات والألوان…" }
+                val (plan, summary) = graph.store.preview(current, true, forced)
+                if (plan == null || plan.blocked) return@runCatching summary
+                pendingPlan = plan.planId
+                graph.store.approve(current, plan.planId)
+            }.getOrElse { it.message ?: "تعذر إكمال التدقيق. راجع الاتصال وأعد المحاولة." }
             withContext(Dispatchers.Main) {
                 busy = false
                 message = text
-                planBlocked = plan?.blocked == true
-                planId = if (plan?.blocked == false) plan.planId else null
-                showReview = planId != null
+                auditApplied = pendingPlan?.let { graph.db.dao().plan(it)?.status == "succeeded" } == true
+                planId = if (auditApplied) null else pendingPlan
+                cycle = graph.db.dao().cycle(current.id)
+                cycles = graph.store.cycles(current.accountEmail)
+                rows = cycle?.let { graph.store.rowsPreview(it) }.orEmpty()
+                showReview = true
+                if (hasCurrentSnapshot()) graph.session.note(LinkEvent.DataReady)
+            }
+        }
+    }
+
+    private fun requireGoogleAuthorization(): Boolean {
+        if (link.value.phase == LinkPhase.WAITING_CONSENT) {
+            screen = Screen.Settings
+            message = "أكمل موافقة Google قبل متابعة العملية."
+            return false
+        }
+        if (!graph.auth.accessToken.isNullOrBlank()) return true
+        screen = Screen.Settings
+        message = "أعد تفويض Google قبل قراءة الجداول أو الكتابة فيها."
+        if (link.value.phase != LinkPhase.WAITING_CONSENT) graph.session.begin()
+        return false
+    }
+
+    fun previewOffline() {
+        if (busy) return
+        val current = cycle ?: return
+        if (!hasSnapshot(current)) {
+            message = "لا توجد لقطة صالحة لهذه الدورة. اتصل بالإنترنت وشغّل التدقيق لتنزيلها."
+            return
+        }
+        busy = true
+        auditApplied = false
+        auditOfflinePreview = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val text = runCatching { graph.store.preview(current, false, force).second }
+                .getOrElse { it.message ?: "تعذرت المعاينة." }
+            withContext(Dispatchers.Main) {
+                busy = false
+                message = text
+                planId = null
                 rows = graph.store.rowsPreview(current)
+                showReview = true
             }
         }
     }
@@ -206,7 +350,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 busy = false
                 message = text
                 cycle = graph.db.dao().cycle(current.id)
-                if (text.startsWith("تم اعتماد")) planId = null
+                auditApplied = graph.db.dao().plan(id)?.status == "succeeded"
+                if (auditApplied) planId = null
             }
         }
     }
@@ -239,19 +384,74 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun search() {
-        val current = cycle ?: return
-        searchText = graph.store.search(current, query)
+        if (busy) return
+        val rate = searchDiscount.replace(',', '.').toDoubleOrNull()
+        if (rate == null || !rate.isFinite() || rate !in 0.0..100.0) {
+            message = "خصم البحث يجب أن يكون بين 0 و100."; return
+        }
+        if (searchAllCycles) {
+            globalSearchResults = cycles.mapNotNull { item ->
+                val hit = graph.store.searchHit(item, query, rate)
+                if (hit != null && (hit.inMgmt || hit.inAgent)) item to graph.store.search(item, query, rate) else null
+            }
+            searchText = if (globalSearchResults.isEmpty()) "لا توجد نتائج في الدورات التي نُزّلت بياناتها." else ""
+        } else {
+            val current = cycle ?: return
+            globalSearchResults = emptyList()
+            searchText = graph.store.search(current, query, rate)
+        }
     }
 
-    fun manual() {
+    fun loadManualTargets(context: Context) {
         val current = cycle ?: return
-        message = graph.store.manual(current, query)
-        search()
+        if (busy) return
+        if (!context.isOnline()) { message = "عرض أوراق الهدف يحتاج اتصالاً."; return }
+        if (!requireGoogleAuthorization()) return
+        busy = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching { graph.store.targetSheets(current) }
+            withContext(Dispatchers.Main) {
+                busy = false
+                result.onSuccess { manualTargets = it }.onFailure { message = it.message ?: "تعذر تحميل أوراق الإدارة." }
+            }
+        }
     }
 
-    fun savePreferences() {
+    fun manual(context: Context) {
         val current = cycle ?: return
-        val rate = discount.replace(',', '.').toDoubleOrNull() ?: 0.0
+        if (busy) return
+        if (!context.isOnline()) { message = "التدقيق الانتقائي يكتب في Google ويحتاج اتصالاً."; return }
+        if (!requireGoogleAuthorization()) return
+        val target = manualNewTarget.trim().ifBlank { manualTarget }
+        if (target.isBlank()) { message = "اختر ورقة هدف أو أدخل اسم ورقة جديدة."; return }
+        busy = true
+        val member = query
+        val create = manualNewTarget.isNotBlank()
+        viewModelScope.launch(Dispatchers.IO) {
+            val text = runCatching { graph.store.manualAdvanced(current, member, target, create) }
+                .getOrElse { it.message ?: "تعذر تنفيذ التدقيق الانتقائي." }
+            withContext(Dispatchers.Main) {
+                busy = false
+                message = text
+                query = member
+                searchText = graph.store.search(current, member, searchDiscount.toDoubleOrNull() ?: 0.0)
+            }
+        }
+    }
+
+    fun savePreferences(): Boolean {
+        val current = cycle ?: return false
+        val rate = discount.replace(',', '.').toDoubleOrNull()
+        if (rate == null || !rate.isFinite() || rate !in 0.0..100.0) {
+            message = "نسبة الخصم يجب أن تكون بين 0 و100."; return false
+        }
+        val required = listOf(colUser, colTitle, colSalary, colMgmt, colAgent, colAgentSalary)
+        if ((required + listOfNotNull(colStatus.takeIf { it.isNotBlank() })).any {
+                cloud.lork.audit.engine.columnLetterToIndex(it) == null
+            }) { message = "استخدم أحرف الأعمدة مثل A أو AA."; return false }
+        if (listOf(agentColor, managementColor).any { !Regex("#[0-9a-fA-F]{6}").matches(it) }) {
+            message = "استخدم لوناً بالصيغة #RRGGBB."; return false
+        }
         val columns = AuditColumns(colUser, colTitle, colSalary, colStatus, colMgmt, colAgent, colAgentSalary)
         graph.store.saveSources(current, sources, columns, rate, agentColor, managementColor)
         cycle = graph.db.dao().cycle(current.id)
@@ -259,7 +459,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         showReview = false
         rows = cycle?.let { graph.store.rowsPreview(it) }.orEmpty()
         graph.session.note(if (sources.complete) LinkEvent.SourcesReady else LinkEvent.SourcesPartial)
-        message = if (sources.complete) "حُفظ الربط. الخطوة التالية تنزيل بيانات الدورة." else "حُفظ ما اكتمل، وما زال أحد المصادر ناقصاً."
+        message = if (sources.complete) "حُفظ ربط الدورة. اضغط تدقيق لمزامنة البيانات وتطبيق النتائج." else "حُفظ ما اكتمل، وما زال أحد المصادر ناقصاً."
+        return true
     }
 
     fun loadFiles(context: Context) {
@@ -301,28 +502,24 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         selectedFile = "$name · $id"
         viewModelScope.launch(Dispatchers.IO) {
             val titles = runCatching { graph.sheets.listSheets(id) }.getOrElse { emptyList() }
-            val header = titles.firstOrNull()?.let { title ->
-                runCatching { graph.sheets.read(id, title).firstOrNull() }.getOrNull()
-            }
             withContext(Dispatchers.Main) {
                 busy = false
                 sheetTitles = titles
                 if (titles.isEmpty()) {
                     fileMessage = "تعذر قراءة أوراق هذا الملف أو أنه بلا أوراق."
-                } else if (header != null) {
-                    val guess = suggestColumns(header)
-                    columnHint = if (guess.ambiguous) {
-                        "عناوين الأعمدة غير حاسمة. راجع أحرف الأعمدة يدوياً قبل الحفظ."
-                    } else {
-                        "اقتراح من العناوين: المستخدم ${guess.userId ?: "—"}، العنوان ${guess.title ?: "—"}، الراتب ${guess.salary ?: "—"}."
-                    }
-                    guess.userId?.let { colUser = it }
-                    guess.title?.let { colTitle = it }
-                    guess.salary?.let { colSalary = it }
-                    guess.status?.let { colStatus = it }
                 }
+
             }
         }
+    }
+
+    fun changeSourceRole(value: String) {
+        if (busy) return
+        role = value
+        selectedFileId = ""
+        selectedFile = ""
+        sheetTitles = emptyList()
+        columnHint = ""
     }
 
     fun chooseSheet(title: String) {
@@ -334,6 +531,26 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             else -> sources.copy(mgmtSs = id, mgmtSheet = title)
         }
         message = "اختيرت ورقة «$title» لدور $role. احفظ الربط بعد اختيار الأدوار الثلاثة."
+        if (role == "مستخدمون") {
+            busy = true
+            viewModelScope.launch(Dispatchers.IO) {
+                val header = runCatching { graph.sheets.read(id, title).firstOrNull() }.getOrNull()
+                withContext(Dispatchers.Main) {
+                    busy = false
+                    if (role != "مستخدمون" || selectedFileId != id || sources.userSheet != title) return@withContext
+                    if (header != null) {
+                        val guess = suggestColumns(header)
+                        columnHint = if (guess.ambiguous) "عناوين الأعمدة غير حاسمة؛ راجع أحرفها يدوياً." else "اقتراح الأعمدة من ورقة «$title» المحددة."
+                        if (!guess.ambiguous) {
+                            guess.userId?.let { colUser = it }
+                            guess.title?.let { colTitle = it }
+                            guess.salary?.let { colSalary = it }
+                            guess.status?.let { colStatus = it }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun applyPastedId() {
@@ -346,100 +563,20 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         openFile(id, "ملف ملصوق")
     }
 
-    fun startSend(context: Context) {
-        if (busy) return
-        if (!confirmedChat) {
-            message = "أكّد أن محادثة واتساب المفتوحة هي الوجهة. التطبيق يكتب في المحادثة الظاهرة فقط."
-            return
-        }
-        val enabled = accessibilityEnabled(context)
-        val bound = AuditAccessibilityService.instance != null
-        if (!enabled || !bound) {
-            message = "خدمة إمكانية الوصول غير متصلة الآن. ظهورها في الإعدادات لا يكفي."
-            return
-        }
+    fun showSendBubble(context: Context) {
         if (!Settings.canDrawOverlays(context)) {
-            message = "إذن الظهور فوق التطبيقات غير ممنوح."
+            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
+            message = "اسمح بالظهور فوق التطبيقات ثم افتح فقاعة الإرسال."
             return
         }
-        val messages = parseMessages(rawMessages, ParseMode.PARAGRAPH_THEN_LINES)
-        if (messages.isEmpty()) {
-            message = "لا توجد رسائل. افصل بين الرسائل بسطر فارغ."
+        if (!accessibilityEnabled(context) || AuditAccessibilityService.instance == null) {
+            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            message = "فعّل خدمة تدقيق لورك ثم افتح الفقاعة."
             return
         }
-        val whatsApp = context.packageManager.getLaunchIntentForPackage("com.whatsapp")
-            ?: context.packageManager.getLaunchIntentForPackage("com.whatsapp.w4b")
-        if (whatsApp == null) {
-            message = "واتساب غير مثبت على هذا الجهاز."
-            return
-        }
-        val dao = graph.db.dao()
-        dao.clearItems()
-        dao.insertItems(messages.mapIndexed { index, body -> SendItemEntity("m$index", index, body, "READY", "جاهزة") })
-        dao.saveSession(
-            cloud.lork.audit.db.SendSessionEntity(
-                state = "WAITING_CHAT",
-                idx = 0,
-                mpm = mpm.coerceIn(1, 1000),
-                chatKey = null,
-                rawText = rawMessages,
-            ),
-        )
-        ContextCompat.startForegroundService(context, Intent(context, FloatingBubbleService::class.java))
-        AuditAccessibilityService.instance?.startLoop()
-        context.startActivity(whatsApp)
-        refreshSend()
-        message = "بدأ الإرسال داخل المحادثة المفتوحة. الضغط على زر الإرسال لا يثبت وصول الرسالة."
-    }
-
-    fun pauseSend() {
-        val dao = graph.db.dao()
-        val session = dao.session() ?: return
-        dao.saveSession(session.copy(state = "PAUSED"))
-        AuditAccessibilityService.instance?.stopLoop()
-        refreshSend()
-        message = "توقف الإرسال مؤقتاً وبقي الطابور."
-    }
-
-    fun resumeSend() {
-        if (AuditAccessibilityService.instance == null) {
-            message = "لا يمكن الاستئناف وخدمة إمكانية الوصول غير متصلة."
-            return
-        }
-        val dao = graph.db.dao()
-        val session = dao.session() ?: return
-        if (dao.items().any { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }) {
-            message = "توجد رسالة غير مؤكدة. راجعها قبل الاستئناف حتى لا تُعاد تلقائياً."
-            return
-        }
-        dao.saveSession(session.copy(state = "SENDING", mpm = mpm.coerceIn(1, 1000)))
-        AuditAccessibilityService.instance?.startLoop()
-        refreshSend()
-    }
-
-    fun stopSend(context: Context) {
-        val dao = graph.db.dao()
-        dao.items().filter { it.status == "READY" || it.status == "TEXT_PREPARED" }.forEach {
-            dao.updateItem(it.itemId, "SKIPPED", "أُوقف الإرسال")
-        }
-        dao.session()?.let { dao.saveSession(it.copy(state = "STOPPED")) }
-        AuditAccessibilityService.instance?.stopLoop()
-        context.stopService(Intent(context, FloatingBubbleService::class.java))
-        refreshSend()
-        message = "أُوقف الإرسال. الرسائل غير المؤكدة بقيت للمراجعة."
-    }
-
-    fun reviewUncertain() {
-        val dao = graph.db.dao()
-        val uncertain = dao.items().filter { it.status == "UNCERTAIN" || it.status == "EXECUTION_STARTED" }
-        if (uncertain.isEmpty()) {
-            message = "لا توجد رسائل غير مؤكدة."
-            return
-        }
-        uncertain.forEach { dao.updateItem(it.itemId, "READY", "أُعيد تجهيزها بعد مراجعة. لن تُرسل حتى تضغط استئناف.") }
-        dao.session()?.let { dao.saveSession(it.copy(state = "PAUSED")) }
-        refreshSend()
-        message = "أُعيد تجهيز الرسائل غير المؤكدة وبقي الإرسال متوقفاً."
+        ContextCompat.startForegroundService(context,
+            Intent(context, FloatingBubbleService::class.java).setAction(FloatingBubbleService.ACTION_SHOW_PANEL))
+        (context as? Activity)?.moveTaskToBack(true)
     }
 
     fun export(context: Context) {
@@ -488,8 +625,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val dao = graph.db.dao()
         sendItems = dao.items()
         sendState = dao.session()?.state ?: "IDLE"
-        if (rawMessages.isBlank()) rawMessages = dao.session()?.rawText.orEmpty()
-        if (dao.session() != null) mpm = dao.session()!!.mpm
     }
 
     private fun hasSnapshot(current: CycleEntity): Boolean =

@@ -3,6 +3,7 @@ package cloud.lork.audit.data
 import cloud.lork.audit.db.AppDao
 import cloud.lork.audit.db.AuditMarkEntity
 import cloud.lork.audit.db.CycleEntity
+import cloud.lork.audit.db.KvEntity
 import cloud.lork.audit.db.OpEntity
 import cloud.lork.audit.db.PlanEntity
 import cloud.lork.audit.db.SendItemEntity
@@ -17,7 +18,10 @@ import cloud.lork.audit.engine.OpStore
 import cloud.lork.audit.engine.PasteBatch
 import cloud.lork.audit.engine.PasteRow
 import cloud.lork.audit.engine.SheetAccessException
+import cloud.lork.audit.engine.SearchHit
 import cloud.lork.audit.engine.SheetApply
+import cloud.lork.audit.engine.SelectiveAuditApply
+import cloud.lork.audit.engine.prepareSelectiveAudit
 import cloud.lork.audit.engine.SnapshotBook
 import cloud.lork.audit.engine.StoredOp
 import cloud.lork.audit.engine.WritePlan
@@ -54,29 +58,79 @@ class RoomOps(private val dao: AppDao) : OpStore {
 }
 
 class AuditStore(private val dao: AppDao, private val sheets: SheetsRest) {
-    fun ensureCycle(email: String, name: String = "الدورة الحالية"): CycleEntity {
-        val active = dao.activeCycle(email)
-        if (active != null) return active
-        val existing = dao.cycles(email).firstOrNull()
-        if (existing != null) {
-            dao.markActive(existing.id, System.currentTimeMillis())
-            return dao.cycle(existing.id)!!
-        }
-        val id = dao.saveCycle(
+    fun cycles(email: String): List<CycleEntity> = dao.cycles(email)
+
+    fun createCycle(email: String, name: String): CycleEntity {
+        require(email.isNotBlank()) { "اربط حساب Google قبل إنشاء دورة." }
+        require(name.isNotBlank()) { "أدخل اسم الدورة المالية." }
+        val id = dao.insertActiveCycle(
             CycleEntity(
-                name = name,
-                accountEmail = email,
-                discountRate = 0.0,
-                agentColor = "#8b5cf6",
-                managementColor = "#facc15",
-                columnsJson = encodeColumns(AuditColumns()),
-                sourcesJson = encodeSources(Sources()),
-                userInfoHash = null,
-                active = true,
-                updatedAt = System.currentTimeMillis(),
+                name = name.trim(), accountEmail = email, discountRate = 0.0,
+                agentColor = "#8b5cf6", managementColor = "#facc15",
+                columnsJson = encodeColumns(AuditColumns()), sourcesJson = encodeSources(Sources()),
+                userInfoHash = null, active = true, updatedAt = System.currentTimeMillis(),
             ),
         )
         return dao.cycle(id)!!
+    }
+
+    fun selectCycle(email: String, id: Long): CycleEntity? = dao.activateCycle(email, id, System.currentTimeMillis())
+
+    fun renameCycle(email: String, id: Long, name: String): CycleEntity? {
+        require(name.isNotBlank()) { "أدخل اسم الدورة المالية." }
+        if (dao.renameCycle(email, id, name.trim(), System.currentTimeMillis()) == 0) return null
+        return dao.cycle(id)
+    }
+
+    fun ensureCycle(email: String, name: String = "الدورة الحالية"): CycleEntity {
+        dao.activeCycle(email)?.let { return it }
+        dao.cycles(email).firstOrNull()?.let { return selectCycle(email, it.id)!! }
+        return createCycle(email, name)
+    }
+
+    fun auditSessionClosed(cycle: CycleEntity): Boolean = dao.kv(auditSessionKey(cycle)) == "closed"
+
+    fun setAuditSessionClosed(cycle: CycleEntity, closed: Boolean) {
+        val current = dao.cycle(cycle.id) ?: return
+        if (current.accountEmail != cycle.accountEmail) return
+        dao.saveKv(KvEntity(auditSessionKey(cycle), if (closed) "closed" else "open"))
+    }
+
+    private fun auditSessionKey(cycle: CycleEntity) = "audit-session:${cycle.accountEmail}:${cycle.id}"
+
+    fun targetSheets(cycle: CycleEntity): List<String> {
+        val sources = decodeSources(cycle.sourcesJson)
+        if (sources.mgmtSs.isBlank()) return emptyList()
+        return sheets.listSheets(sources.mgmtSs)
+    }
+
+    fun manualAdvanced(cycle: CycleEntity, query: String, targetTitle: String, createIfMissing: Boolean, discountRate: Double = 0.0): String {
+        return try {
+            val current = dao.cycle(cycle.id) ?: return "الدورة غير موجودة."
+            if (current.accountEmail != cycle.accountEmail) return "هذه الدورة لا تخص الحساب الحالي."
+            val sources = decodeSources(current.sourcesJson)
+            val snap = dao.latestSnapshot(current.id, current.accountEmail)
+                ?: return "حمّل بيانات الدورة قبل التدقيق الانتقائي."
+            if (snap.fingerprint != fingerprint(sources)) return "تغيّرت مصادر الدورة. أعد تحميل البيانات قبل التدقيق الانتقائي."
+            val prepared = prepareSelectiveAudit(
+                current.accountEmail, current.id.toString(), query,
+                decodeRows(snap.managementJson), decodeRows(snap.agentJson), decodeColumns(current.columnsJson),
+                sources.mgmtSs, sources.mgmtSheet, sources.agentSs, sources.agentSheet,
+                targetTitle, createIfMissing, discountRate, current.agentColor, current.managementColor,
+            )
+            val plan = prepared.plan ?: return prepared.message
+            val report = SelectiveAuditApply(sheets, RoomOps(dao)).apply(plan, current.accountEmail, current.id.toString())
+            if (report.applied) {
+                dao.saveMark(AuditMarkEntity(
+                    id = "${current.id}|${plan.memberId}", cycleId = current.id, userId = plan.memberId,
+                    status = "مدقق", source = "تدقيق من أداة البحث",
+                    detail = "${plan.statusLabel} · ${plan.targetTitle} · ${plan.salaryBefore} / ${plan.salaryAfter}",
+                ))
+            }
+            report.message
+        } catch (e: Exception) {
+            "تعذر تنفيذ التدقيق الانتقائي: ${e.message ?: "خطأ في الاتصال"}"
+        }
     }
 
     fun saveSources(cycle: CycleEntity, sources: Sources, columns: AuditColumns, discount: Double, agentColor: String, managementColor: String) {
@@ -225,23 +279,31 @@ class AuditStore(private val dao: AppDao, private val sheets: SheetsRest) {
         return report.message
     }
 
-    fun search(cycle: CycleEntity, query: String): String {
-        val snap = dao.latestSnapshot(cycle.id, cycle.accountEmail) ?: return "لا توجد بيانات محلية للبحث."
+    fun searchHit(cycle: CycleEntity, query: String, discountRate: Double = 0.0): SearchHit? {
+        val snap = dao.latestSnapshot(cycle.id, cycle.accountEmail) ?: return null
+        if (snap.fingerprint != fingerprint(decodeSources(cycle.sourcesJson))) return null
         val id = normalizeUserId(query)
         val cached = dao.mark(cycle.id, id)
         val marks = dao.marks(cycle.id)
-        val hit = searchUserInCycle(
+        return searchUserInCycle(
             queryRaw = query,
             managementRows = decodeRows(snap.managementJson),
             agentRows = decodeRows(snap.agentJson),
             columns = decodeColumns(cycle.columnsJson),
-            discountRatePct = cycle.discountRate,
+            discountRatePct = discountRate,
             auditedAgentIds = marks.filter { it.source.contains("وكيل") || it.source.contains("يدوي") || it.source.contains("النظام") }.map { it.userId }.toSet(),
             auditedMgmtIds = marks.filter { it.source.contains("ادارة") || it.source.contains("إدارة") || it.source.contains("يدوي") }.map { it.userId }.toSet(),
             hasCache = cached != null,
             cachedStatus = cached?.status,
             cachedSource = cached?.source,
-        ) ?: return "رقم المستخدم غير صالح."
+        )
+    }
+
+    fun search(cycle: CycleEntity, query: String, discountRate: Double = 0.0): String {
+        if (normalizeUserId(query).isBlank()) return "رقم المستخدم غير صالح."
+        val snap = dao.latestSnapshot(cycle.id, cycle.accountEmail) ?: return "لا توجد بيانات محلية للبحث."
+        if (snap.fingerprint != fingerprint(decodeSources(cycle.sourcesJson))) return "تغيّرت مصادر الدورة. أعد تحميل البيانات قبل البحث."
+        val hit = searchHit(cycle, query, discountRate) ?: return "رقم المستخدم غير صالح."
         return "الحالة: ${hit.logicalStatus}\nالتدقيق: ${hit.auditStatus}" +
             (hit.auditSource?.let { " — $it" } ?: "") +
             "\nقبل الخصم: ${hit.salaryBefore} / بعد الخصم: ${hit.salaryAfter}" +
